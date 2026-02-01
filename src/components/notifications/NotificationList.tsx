@@ -15,7 +15,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
-import { NotificationType } from "@/types/api.types";
+import { NotificationType } from "@/types";
 import { useNotificationStore } from "@/store/notification.store";
 import { useNotifications } from "@/hooks/useNotifications";
 import { useUIStore } from "@/store/ui.store";
@@ -30,12 +30,15 @@ interface NotificationActionData {
 }
 
 interface UINotification {
-  id: string;
+  _id?: string;
+  id?: string;
   title: string;
-  body: string;
+  message?: string;
+  body?: string;
   type: NotificationType;
   data?: NotificationActionData;
-  timestamp: string;
+  createdAt?: string;
+  timestamp?: string;
   read: boolean;
 }
 
@@ -45,15 +48,21 @@ interface NotificationAction {
 }
 
 export const NotificationList: React.FC = () => {
-  const {
-    notifications,
-    unreadCount,
-    markAsRead,
-    clearAll,
-    removeNotification,
-  } = useNotificationStore();
-  const { clearAll: clearAllAPI } = useNotifications();
+  const { notifications, unreadCount, removeNotification } =
+    useNotificationStore();
+  const { clearAll, markAsRead, markAllAsRead } = useNotifications();
   const { closeSidebar } = useUIStore();
+
+  const getNotificationId = (notification: UINotification) =>
+    notification._id ?? notification.id ?? "";
+
+  const getNotificationMessage = (notification: UINotification) =>
+    notification.message ?? notification.body ?? "";
+
+  const getNotificationTimestamp = (notification: UINotification) =>
+    notification.createdAt ??
+    notification.timestamp ??
+    new Date().toISOString();
 
   const getNotificationIcon = (type: NotificationType) => {
     switch (type) {
@@ -90,7 +99,7 @@ export const NotificationList: React.FC = () => {
   };
 
   const getNotificationAction = (
-    notification: UINotification
+    notification: UINotification,
   ): NotificationAction => {
     switch (notification.type) {
       case NotificationType.PAYMENT_RECEIVED:
@@ -131,22 +140,28 @@ export const NotificationList: React.FC = () => {
     }
   };
 
-  const handleMarkAllAsRead = () => {
-    markAsRead();
+  const handleMarkAllAsRead = async () => {
+    try {
+      await markAllAsRead();
+    } catch (error) {
+      console.error("Failed to mark all as read:", error);
+    }
   };
 
   const handleClearAll = async () => {
     try {
-      await clearAllAPI();
-      clearAll();
+      await clearAll();
     } catch (error) {
       console.error("Failed to clear notifications:", error);
     }
   };
 
   const handleNotificationClick = (notification: UINotification) => {
-    if (!notification.read) {
-      markAsRead(notification.id);
+    const notificationId = getNotificationId(notification);
+    if (!notification.read && notificationId) {
+      markAsRead(notificationId).catch((error) => {
+        console.error("Failed to mark notification as read:", error);
+      });
     }
 
     const action = getNotificationAction(notification);
@@ -222,15 +237,16 @@ export const NotificationList: React.FC = () => {
       <ScrollArea className="flex-1">
         <div className="p-2 space-y-2">
           {(notifications as UINotification[]).map((notification) => {
+            const notificationId = getNotificationId(notification);
             const action = getNotificationAction(notification);
 
             return (
               <div
-                key={notification.id}
+                key={notificationId}
                 className={cn(
                   "p-3 rounded-lg border cursor-pointer transition-all hover:shadow-md",
                   getNotificationColor(notification.type),
-                  !notification.read && "ring-1 ring-blue-300"
+                  !notification.read && "ring-1 ring-blue-300",
                 )}
                 onClick={() => handleNotificationClick(notification)}
               >
@@ -249,13 +265,16 @@ export const NotificationList: React.FC = () => {
                           <div className="h-2 w-2 rounded-full bg-blue-500"></div>
                         )}
                         <span className="text-xs text-gray-500">
-                          {format(new Date(notification.timestamp), "hh:mm a")}
+                          {format(
+                            new Date(getNotificationTimestamp(notification)),
+                            "hh:mm a",
+                          )}
                         </span>
                       </div>
                     </div>
 
                     <p className="text-sm text-gray-600 mt-1">
-                      {notification.body}
+                      {getNotificationMessage(notification)}
                     </p>
 
                     {notification.data && (
@@ -282,7 +301,7 @@ export const NotificationList: React.FC = () => {
                             <span>
                               {format(
                                 new Date(notification.data.date),
-                                "dd MMM yyyy"
+                                "dd MMM yyyy",
                               )}
                             </span>
                           </div>
@@ -311,8 +330,8 @@ export const NotificationList: React.FC = () => {
                           className="h-6 w-6"
                           onClick={(e) => {
                             e.stopPropagation();
-                            if (notification.id) {
-                              removeNotification(notification.id);
+                            if (notificationId) {
+                              removeNotification(notificationId);
                             }
                           }}
                         >
@@ -354,8 +373,8 @@ export const NotificationList: React.FC = () => {
               {
                 notifications.filter(
                   (n) =>
-                    new Date(n.timestamp).toDateString() ===
-                    new Date().toDateString()
+                    new Date(getNotificationTimestamp(n)).toDateString() ===
+                    new Date().toDateString(),
                 ).length
               }
             </div>

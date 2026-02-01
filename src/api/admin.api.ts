@@ -1,49 +1,108 @@
-import { apiClient } from "./axios";
-import type { 
-  Admin, 
-  LoginFormData, 
-  LoginResponse,
-  NotificationPreferences,
-  MonthlyReport,
+import axiosInstance, { apiCall } from "./axios";
+import type {
+  Admin,
   DashboardStats,
-  StaffListResponse
-} from "@/types/api.types";
+  FinancialReport,
+  ApiResponse,
+  NotificationPreferences,
+} from "@/types";
 
-export const AdminAPI = {
+export const adminApi = {
   // Login
-  login: async (data: LoginFormData): Promise<LoginResponse> => {
-    return apiClient.post<LoginResponse>("/admin/login", data);
-  },
+  login: (credentials: { email: string; password: string }) =>
+    apiCall<ApiResponse<{ admin: Admin; accessToken: string }>>(
+      axiosInstance.post("/admin/login", credentials),
+      { showSuccess: true, successMessage: "Login successful" },
+    ),
 
   // Get profile
-  getProfile: async (): Promise<Admin> => {
-    return apiClient.get<Admin>("/admin/profile");
-  },
+  getProfile: () =>
+    apiCall<ApiResponse<Admin>>(axiosInstance.get("/admin/profile")),
 
-  // Update notification preferences
-  updateNotificationPreferences: async (preferences: NotificationPreferences): Promise<Admin> => {
-    return apiClient.patch<Admin>("/admin/notifications/preferences", { preferences });
-  },
+  // Register new admin (SUPER_ADMIN only)
+  registerAdmin: (data: {
+    name: string;
+    email: string;
+    password?: string;
+    phone?: string;
+    role?: "SUPER_ADMIN" | "ADMIN";
+  }) =>
+    apiCall<ApiResponse<Admin>>(axiosInstance.post("/admin/register", data), {
+      showSuccess: true,
+      successMessage: "Admin registered successfully",
+    }),
+
+  // Get all admins (SUPER_ADMIN only)
+  getAllAdmins: () =>
+    apiCall<ApiResponse<Admin[]>>(axiosInstance.get("/admin")),
+
+  // Update admin (SUPER_ADMIN only)
+  updateAdmin: (
+    adminId: string,
+    data: {
+      name?: string;
+      email?: string;
+      phone?: string;
+      role?: string;
+      status?: string;
+    },
+  ) =>
+    apiCall<ApiResponse<Admin>>(
+      axiosInstance.patch(`/admin/${adminId}`, data),
+      { showSuccess: true, successMessage: "Admin updated successfully" },
+    ),
+
+  // Delete admin (SUPER_ADMIN only)
+  deleteAdmin: (adminId: string) =>
+    apiCall<ApiResponse<null>>(axiosInstance.delete(`/admin/${adminId}`), {
+      showSuccess: true,
+      successMessage: "Admin deleted successfully",
+    }),
 
   // Get dashboard stats
-  getDashboardStats: async (): Promise<DashboardStats> => {
-    return apiClient.get<DashboardStats>("/admin/dashboard-stats");
-  },
+  getDashboardStats: () =>
+    apiCall<ApiResponse<DashboardStats>>(
+      axiosInstance.get("/admin/dashboard-stats"),
+    ),
 
-  // Get monthly report
-  getMonthlyReport: async (month: number, year: number): Promise<MonthlyReport> => {
-    return apiClient.get<MonthlyReport>("/admin/reports", { month, year });
-  },
+  // Get financial report
+  getFinancialReport: (params: {
+    startMonth: number;
+    startYear: number;
+    endMonth: number;
+    endYear: number;
+  }) =>
+    apiCall<ApiResponse<FinancialReport>>(
+      axiosInstance.get("/admin/reports", { params }),
+    ),
 
-  // Get staff list (Super Admin only)
-  getStaffList: async (): Promise<StaffListResponse> => {
-    return apiClient.get<StaffListResponse>("/admin/staff");
-  },
+  // Get staff list (SUPER_ADMIN only)
+  getStaffList: () =>
+    apiCall<ApiResponse<Admin[]>>(axiosInstance.get("/admin/staff")),
 
-  // Logout
-  logout: async (): Promise<void> => {
-    // Clear local storage
-    localStorage.removeItem("accessToken");
-    localStorage.removeItem("refreshToken");
-  },
+  // Get notification preferences
+  getNotificationPreferences: () =>
+    apiCall<ApiResponse<NotificationPreferences>>(
+      axiosInstance.get("/admin/notifications/preferences"),
+    ),
+
+  // Update notification preferences
+  updateNotificationPreferences: (preferences: NotificationPreferences) =>
+    apiCall<ApiResponse<NotificationPreferences>>(
+      axiosInstance.patch("/admin/notifications/preferences", preferences),
+      { showSuccess: true, successMessage: "Preferences updated" },
+    ),
+
+  // Generate monthly fees (for testing/admin purposes)
+  generateMonthlyFees: (month: number, year: number) =>
+    apiCall<
+      ApiResponse<{
+        generated: number;
+        skipped: number;
+        errors: Array<{ student: string; error: string }>;
+      }>
+    >(axiosInstance.post("/admin/generate-fees", { month, year }), {
+      showSuccess: true,
+      successMessage: `Monthly fees generated for ${month + 1}/${year}`,
+    }),
 };

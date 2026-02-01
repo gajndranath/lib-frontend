@@ -5,17 +5,69 @@ export const queryClient = new QueryClient({
     queries: {
       staleTime: 1000 * 60 * 5, // 5 minutes
       gcTime: 1000 * 60 * 10, // 10 minutes
-      retry: 3,
+      retry: 2, // Reduced from 3
       retryDelay: (attemptIndex: number) =>
-        Math.min(1000 * 2 ** attemptIndex, 30000),
+        Math.min(1000 * 2 ** attemptIndex, 10000), // Max 10 seconds
       refetchOnWindowFocus: false,
-      refetchOnReconnect: true,
+      refetchOnReconnect: false, // Changed from true to prevent auto-refetch on reconnect
+      refetchOnMount: true,
+      // Add deduplication
+      networkMode: "always", // Ensures offline requests are queued
     },
     mutations: {
-      retry: 2,
+      retry: 1, // Reduced from 2
+      networkMode: "always",
     },
   },
 });
+
+// Add rate limiting helper
+class RequestQueue {
+  private queue: Array<() => Promise<unknown>> = [];
+  private processing = false;
+  private readonly maxConcurrent = 5;
+  private activeRequests = 0;
+
+  async add<T>(request: () => Promise<T>): Promise<T> {
+    return new Promise<T>((resolve, reject) => {
+      this.queue.push(async () => {
+        try {
+          const result = await request();
+          resolve(result);
+        } catch (error) {
+          reject(error);
+        }
+      });
+
+      if (!this.processing) {
+        this.processQueue();
+      }
+    });
+  }
+
+  private async processQueue(): Promise<void> {
+    if (this.processing) return;
+
+    this.processing = true;
+
+    while (this.queue.length > 0 && this.activeRequests < this.maxConcurrent) {
+      const request = this.queue.shift();
+      if (request) {
+        this.activeRequests++;
+        request().finally(() => {
+          this.activeRequests--;
+          if (this.activeRequests === 0 && this.queue.length > 0) {
+            this.processQueue();
+          }
+        });
+      }
+    }
+
+    this.processing = false;
+  }
+}
+
+export const requestQueue = new RequestQueue();
 
 // Query keys factory for better type safety
 export interface StudentFilters {

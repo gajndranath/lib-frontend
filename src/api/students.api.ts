@@ -1,84 +1,116 @@
-import { apiClient } from "./axios";
+import axiosInstance, { apiCall } from "./axios";
 import type {
   Student,
-  StudentFormData,
-  PaymentFormData,
-  DashboardData,
-  PaginatedResponse,
-  Ledger,
-  StudentHistoryResponse,
-  PaymentSummaryResponse
-} from "@/types/api.types";
+  StudentWithDetails,
+  ApiResponse,
+  RegisterStudentFormData,
+} from "@/types";
 
-export const StudentsAPI = {
-  // Dashboard
-  getDashboardData: async (
-    month: number,
-    year: number
-  ): Promise<DashboardData> => {
-    return apiClient.get("/students/dashboard", { month, year });
-  },
+export const studentApi = {
+  // Register student
+  registerStudent: (data: RegisterStudentFormData) =>
+    apiCall<ApiResponse<Student>>(axiosInstance.post("/students", data), {
+      showSuccess: true,
+      successMessage: "Student registered successfully",
+    }),
 
-  // Students CRUD
-  getStudents: async (params?: {
+  // Update student
+  updateStudent: (studentId: string, data: Partial<RegisterStudentFormData>) =>
+    apiCall<ApiResponse<Student>>(
+      axiosInstance.patch(`/students/${studentId}`, data),
+      { showSuccess: true, successMessage: "Student updated successfully" },
+    ),
+
+  // Archive student
+  archiveStudent: (studentId: string, reason: string) =>
+    apiCall<ApiResponse<Student>>(
+      axiosInstance.patch(`/students/${studentId}/archive`, { reason }),
+      { showSuccess: true, successMessage: "Student archived successfully" },
+    ),
+
+  // Reactivate student
+  reactivateStudent: (studentId: string) =>
+    apiCall<ApiResponse<Student>>(
+      axiosInstance.patch(`/students/${studentId}/reactivate`),
+      { showSuccess: true, successMessage: "Student reactivated successfully" },
+    ),
+
+  // Get student details
+  getStudentDetails: (studentId: string) =>
+    apiCall<ApiResponse<StudentWithDetails>>(
+      axiosInstance.get(`/students/${studentId}`),
+    ),
+
+  // Search students
+  searchStudents: (params: {
+    query?: string;
+    status?: string;
+    slotId?: string;
     page?: number;
     limit?: number;
-    search?: string;
-    status?: string;
-  }): Promise<PaginatedResponse<Student>> => {
-    return apiClient.get("/students/list", params);
-  },
+  }) =>
+    apiCall<
+      ApiResponse<{
+        students: Student[];
+        pagination: {
+          page: number;
+          limit: number;
+          total: number;
+          pages: number;
+        };
+      }>
+    >(axiosInstance.get("/students", { params })),
 
-  getStudentById: async (id: string): Promise<Student> => {
-    return apiClient.get(`/students/${id}`);
-  },
+  // Get students by slot
+  getStudentsBySlot: (slotId: string, status?: string) =>
+    apiCall<ApiResponse<Student[]>>(
+      axiosInstance.get(`/students/slot/${slotId}`, { params: { status } }),
+    ),
+  // Change student slot
+  changeStudentSlot: (studentId: string, newSlotId: string) =>
+    apiCall<
+      ApiResponse<{
+        student: Student;
+        oldSlot: { slotId: string; slotName: string };
+        newSlot: { id: string; name: string };
+      }>
+    >(
+      axiosInstance.patch(`/students/${studentId}/change-slot`, { newSlotId }),
+      { showSuccess: true, successMessage: "Slot changed successfully" },
+    ),
 
-  createStudent: async (data: StudentFormData): Promise<Student> => {
-    return apiClient.post("/students/register", data);
-  },
-
-  updateStudent: async (
-    id: string,
-    data: Partial<StudentFormData>
-  ): Promise<Student> => {
-    return apiClient.patch(`/students/${id}`, data);
-  },
-
-  deleteStudent: async (id: string): Promise<{ success: boolean }> => {
-    return apiClient.delete(`/students/${id}`);
-  },
-
-  // Payments
-  updatePaymentStatus: async (data: PaymentFormData): Promise<Ledger> => {
-    return apiClient.patch("/students/update-payment", data);
-  },
-
-  getStudentHistory: async (
-    studentId: string
-  ): Promise<StudentHistoryResponse> => {
-    return apiClient.get(`/students/${studentId}/history`);
-  },
-
-  toggleReminder: async (
+  // Override student fee
+  overrideStudentFee: (
     studentId: string,
-    pause: boolean
-  ): Promise<Student> => {
-    return apiClient.patch("/students/toggle-reminder", { studentId, pause });
-  },
+    newMonthlyFee: number,
+    reason: string,
+  ) =>
+    apiCall<ApiResponse<Student>>(
+      axiosInstance.patch(`/students/${studentId}/override-fee`, {
+        newMonthlyFee,
+        reason,
+      }),
+      { showSuccess: true, successMessage: "Fee overridden successfully" },
+    ),
 
-  // Export
-  exportData: async (month: number, year: number): Promise<Blob> => {
-    return apiClient.get(
-      "/students/export",
-      { month, year },
-      {
-        responseType: "blob" as const,
-      }
-    );
-  },
+  // Save push subscription
+  savePushSubscription: (
+    studentId: string,
+    data: {
+      subscription: PushSubscriptionJSON;
+      type?: "web" | "fcm";
+      deviceInfo?: Record<string, unknown>;
+    },
+  ) =>
+    apiCall<ApiResponse<null>>(
+      axiosInstance.post(`/students/${studentId}/subscribe`, data),
+      { showSuccess: true, successMessage: "Subscription saved" },
+    ),
 
-  // Get payment summary
-  getPaymentSummary: async (studentId: string): Promise<PaymentSummaryResponse> => {
-    return apiClient.get(`/students/${studentId}/summary`);
-  },
+  // Remove push subscription
+  removePushSubscription: (studentId: string, type?: "web" | "fcm") =>
+    apiCall<ApiResponse<null>>(
+      axiosInstance.post(`/students/${studentId}/unsubscribe`, { type }),
+      { showSuccess: true, successMessage: "Subscription removed" },
+    ),
 };

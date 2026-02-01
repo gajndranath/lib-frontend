@@ -1,167 +1,119 @@
-import { useEffect, useState } from "react";
-import { socketService } from "@/services/socket.service";
-import { useQueryClient } from "@tanstack/react-query";
-import { queryKeys } from "@/lib/queryClient";
-import { toast } from "sonner";
+import { useEffect, useCallback } from "react";
+import { socketService } from "@/api/socket.service";
 import { useNotificationStore } from "@/store/notification.store";
-import type {
-  SocketPaymentSyncData,
-  SocketNewStudentData,
-  SocketAdminConnectionData,
-  NotificationData,
-  PaymentStatus,
-} from "@/types/api.types";
-import { NotificationType } from "@/types/api.types";
-
-interface PaymentSyncData extends SocketPaymentSyncData {
-  updatedBy: string;
-}
-
-interface NewStudentData extends SocketNewStudentData {
-  addedBy: string;
-}
+import { useAuthStore } from "@/store/auth.store";
+import { toast } from "sonner";
+import type { Notification } from "@/types";
 
 export const useSocket = () => {
-  const [isConnected, setIsConnected] = useState(false);
-  const [socketId, setSocketId] = useState<string | null>(null);
-  const [connectedAdmins, setConnectedAdmins] = useState(0);
-  const queryClient = useQueryClient();
-  const { addNotification } = useNotificationStore();
+  const { admin, accessToken, isAuthenticated } = useAuthStore();
+  const { addNotification, markAsRead } = useNotificationStore();
 
+  // Connect socket when authenticated
   useEffect(() => {
-    // Connection status
-    const handleConnect = () => {
-      setIsConnected(true);
-      setSocketId(socketService.getSocketId());
-    };
+    if (isAuthenticated && admin && accessToken) {
+      const socket = socketService.connect(accessToken, admin._id, admin.role);
 
-    const handleDisconnect = () => {
-      setIsConnected(false);
-      setSocketId(null);
-    };
+      // Setup event listeners
+      socket.on("notification", (notification: Notification) => {
+        addNotification(notification);
 
-    // Dashboard updates
-    const handleDashboardUpdate = () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.students.all });
-      queryClient.invalidateQueries({
-        queryKey: queryKeys.analytics.dashboard,
-      });
-    };
-
-    // Payment sync
-    const handlePaymentSync = (data: PaymentSyncData) => {
-      queryClient.invalidateQueries({
-        queryKey: queryKeys.students.dashboard(data.month, data.year),
+        // Show toast for important notifications
+        if (!notification.read && notification.priority === "URGENT") {
+          toast.error(notification.title, {
+            description: notification.message,
+            duration: 10000,
+          });
+        } else if (!notification.read) {
+          toast.info(notification.title, {
+            description: notification.message,
+            duration: 5000,
+          });
+        }
       });
 
-      if (data.updatedBy !== socketId) {
-        toast.info("Payment Updated", {
-          description: `${data.studentName} marked as ${data.status} by ${data.updatedBy}`,
+      socket.on("payment_sync", (data) => {
+        toast.success("Payment Updated", {
+          description: `${data.studentName} - ₹${data.amount}`,
         });
-      }
-    };
-
-    // New student added
-    const handleNewStudent = (data: NewStudentData) => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.students.all });
-
-      if (data.addedBy !== socketId) {
-        toast.info("New Student Added", {
-          description: `${data.studentName} added by ${data.addedBy}`,
-        });
-
-        addNotification({
-          id: Date.now().toString(),
-          title: "New Student Added",
-          body: `${data.studentName} added to the system`,
-          type: NotificationType.STUDENT_ADDED,
-          data: { studentId: data.studentId, studentName: data.studentName },
-          timestamp: new Date().toISOString(),
-        });
-      }
-    };
-
-    // Connected users count
-    const handleConnectedUsers = (data: { adminCount: number }) => {
-      setConnectedAdmins(data.adminCount);
-    };
-
-    // Admin connected/disconnected
-    const handleAdminConnected = (data: SocketAdminConnectionData) => {
-      if (data.adminId !== socketId) {
-        toast.info("Admin Connected", {
-          description: "Another admin is now online",
-        });
-      }
-    };
-
-    const handleAdminDisconnected = () => {
-      toast.info("Admin Disconnected", {
-        description: "An admin has gone offline",
       });
-    };
 
-    // Register listeners
-    socketService.on("connect", handleConnect);
-    socketService.on("disconnect", handleDisconnect);
-    socketService.on("dashboard_updated", handleDashboardUpdate);
-    socketService.on("payment_sync", handlePaymentSync);
-    socketService.on("new_student", handleNewStudent);
-    socketService.on("connected_users", handleConnectedUsers);
-    socketService.on("admin_connected", handleAdminConnected);
-    socketService.on("admin_disconnected", handleAdminDisconnected);
+      socket.on("new_student", (data) => {
+        toast.info("New Student Registered", {
+          description: `${data.name} added to ${data.slotName}`,
+        });
+      });
 
-    // Start keep-alive ping
-    const keepAliveInterval = socketService.startKeepAlive();
+      socket.on("reminder_alert", (data) => {
+        toast.warning("Reminder Triggered", {
+          description: `${data.count} reminders sent`,
+        });
+      });
 
-    return () => {
-      // Cleanup
-      socketService.off("connect", handleConnect);
-      socketService.off("disconnect", handleDisconnect);
-      socketService.off("dashboard_updated", handleDashboardUpdate);
-      socketService.off("payment_sync", handlePaymentSync);
-      socketService.off("new_student", handleNewStudent);
-      socketService.off("connected_users", handleConnectedUsers);
-      socketService.off("admin_connected", handleAdminConnected);
-      socketService.off("admin_disconnected", handleAdminDisconnected);
+      socket.on("connected", (data) => {
+        console.log("Socket connected:", data.message);
+      });
 
-      if (keepAliveInterval) {
-        clearInterval(keepAliveInterval);
-      }
-    };
-  }, [queryClient, socketId, addNotification]);
+      socket.on("system_status", (data) => {
+        console.log("System status:", data);
+      });
 
-  // Emit payment update
-  const emitPaymentUpdate = (data: {
-    studentId: string;
-    month: number;
-    year: number;
-    status: PaymentStatus;
-    amount?: number;
-    updatedBy: string;
-  }) => {
-    socketService.emit("payment_updated", data);
-  };
+      // Cleanup on unmount
+      return () => {
+        socket.off("notification");
+        socket.off("payment_sync");
+        socket.off("new_student");
+        socket.off("reminder_alert");
+        socket.off("connected");
+        socket.off("system_status");
+        socketService.disconnect();
+      };
+    }
+  }, [isAuthenticated, admin, accessToken, addNotification]);
 
-  // Emit dashboard sync
-  const emitDashboardSync = (month: number, year: number) => {
-    socketService.emit("sync_dashboard", { month, year });
-  };
+  // Emit events
+  const emitPaymentUpdate = useCallback(
+    (data: { studentName: string; amount: number }) => {
+      socketService.emit("payment_updated", data);
+    },
+    [],
+  );
 
-  // Send notification
-  const sendNotification = (notification: NotificationData) => {
-    socketService.emit("send_notification", notification);
-  };
+  const emitStudentAdded = useCallback(
+    (data: { name: string; slotName: string }) => {
+      socketService.emit("student_added", data);
+    },
+    [],
+  );
+
+  const emitFeeStatusChanged = useCallback((data: Record<string, unknown>) => {
+    socketService.emit("fee_status_changed", data);
+  }, []);
+
+  const emitReminderTriggered = useCallback((data: { count: number }) => {
+    socketService.emit("reminder_triggered", data);
+  }, []);
+
+  const markNotificationRead = useCallback(
+    (notificationId: string) => {
+      socketService.emit("mark_notification_read", notificationId);
+      markAsRead(notificationId);
+    },
+    [markAsRead],
+  );
+
+  const ping = useCallback(() => {
+    socketService.emit("ping");
+  }, []);
 
   return {
-    isConnected,
-    socketId,
-    connectedAdmins,
+    isConnected: socketService.isConnected(),
+    socketId: socketService.getId(),
     emitPaymentUpdate,
-    emitDashboardSync,
-    sendNotification,
-    connect: () => socketService.connect(),
-    disconnect: () => socketService.disconnect(),
-    isSocketConnected: () => socketService.isSocketConnected(),
+    emitStudentAdded,
+    emitFeeStatusChanged,
+    emitReminderTriggered,
+    markNotificationRead,
+    ping,
   };
 };

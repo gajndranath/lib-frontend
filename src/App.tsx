@@ -1,141 +1,67 @@
-import React, { useEffect } from "react";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-import { QueryClientProvider } from "@tanstack/react-query";
-import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
+import { Suspense, useEffect } from "react";
+import { RouterProvider } from "react-router-dom";
 import { Toaster } from "sonner";
-import { queryClient } from "@/lib/queryClient";
-import { socketService } from "@/services/socket.service";
-import { webPushService } from "@/services/notification.service";
-import { useAuthStore } from "@/store/auth.store";
-import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
-import { Layout } from "@/components/layout/Layout";
-import { LoginPage } from "@/pages/Login";
-import { DashboardPage } from "@/pages/Dashboard";
-import { StudentsPage } from "@/pages/Students";
-import { PaymentsPage } from "@/pages/Payments";
-import { ReportsPage } from "@/pages/Reports";
-import { SettingsPage } from "@/pages/Settings";
+import { QueryProvider } from "@/providers/QueryProvider";
+import { AuthProvider } from "@/providers/AuthProvider";
+import { NotificationProvider } from "@/providers/NotificationProvider";
+import { router } from "@/routes";
 
-// Import error boundary for production
-const ErrorBoundary = React.lazy(
-  () => import("@/components/layout/ErrorBoundary")
+// Loading fallback
+const LoadingFallback = () => (
+  <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-50 to-white dark:from-gray-900 dark:to-gray-800">
+    <div className="text-center">
+      <div className="inline-flex items-center justify-center w-20 h-20 rounded-xl bg-primary/10 mb-6">
+        <div className="h-10 w-10 rounded-full border-4 border-primary border-t-transparent animate-spin" />
+      </div>
+      <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
+        Library Management System
+      </h2>
+      <p className="text-gray-600 dark:text-gray-400">
+        Loading your dashboard...
+      </p>
+    </div>
+  </div>
 );
 
-function AppRoutes() {
-  const { isAuthenticated, isLoading, initialize } = useAuthStore();
-
-  // Initialize auth state on mount
+function AppContent() {
+  // Set theme based on system preference
   useEffect(() => {
-    const initAuth = async () => {
-      await initialize();
-    };
-
-    initAuth();
-  }, [initialize]);
-
-  // Initialize socket connection if authenticated
-  useEffect(() => {
-    if (isAuthenticated) {
-      socketService.connect();
-      webPushService.setupNotificationHandler();
-
-      if (webPushService.isPushSupported()) {
-        webPushService.requestPermission();
-        webPushService.checkSubscription();
-      }
+    const isDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+    if (isDark) {
+      document.documentElement.classList.add("dark");
     } else {
-      socketService.disconnect();
+      document.documentElement.classList.remove("dark");
     }
-  }, [isAuthenticated]);
-
-  if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
-      </div>
-    );
-  }
+  }, []);
 
   return (
-    <Routes>
-      {/* Public route - login page */}
-      <Route
-        path="/login"
-        element={
-          isAuthenticated ? <Navigate to="/dashboard" replace /> : <LoginPage />
-        }
+    <Suspense fallback={<LoadingFallback />}>
+      <RouterProvider router={router} />
+      <Toaster
+        position="top-right"
+        toastOptions={{
+          duration: 4000,
+          className: "font-sans",
+          style: {
+            background: "hsl(var(--background))",
+            color: "hsl(var(--foreground))",
+            border: "1px solid hsl(var(--border))",
+          },
+        }}
       />
-
-      {/* Protected routes - only if authenticated */}
-      {isAuthenticated ? (
-        <Route
-          path="/"
-          element={
-            <ProtectedRoute>
-              <Layout />
-            </ProtectedRoute>
-          }
-        >
-          <Route index element={<Navigate to="/dashboard" replace />} />
-          <Route path="dashboard" element={<DashboardPage />} />
-          <Route path="students" element={<StudentsPage />} />
-          <Route path="payments" element={<PaymentsPage />} />
-          <Route path="reports" element={<ReportsPage />} />
-          <Route path="settings" element={<SettingsPage />} />
-        </Route>
-      ) : (
-        // If not authenticated, all routes redirect to login
-        <Route path="/*" element={<Navigate to="/login" replace />} />
-      )}
-
-      {/* Fallback route */}
-      <Route
-        path="*"
-        element={
-          isAuthenticated ? (
-            <Navigate to="/dashboard" replace />
-          ) : (
-            <Navigate to="/login" replace />
-          )
-        }
-      />
-    </Routes>
+    </Suspense>
   );
 }
 
 function App() {
   return (
-    <QueryClientProvider client={queryClient}>
-      <React.Suspense
-        fallback={
-          <div className="min-h-screen flex items-center justify-center">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
-          </div>
-        }
-      >
-        <ErrorBoundary>
-          <BrowserRouter>
-            <AppRoutes />
-          </BrowserRouter>
-        </ErrorBoundary>
-      </React.Suspense>
-
-      <Toaster
-        position="top-right"
-        richColors
-        closeButton
-        expand={false}
-        toastOptions={{
-          duration: 4000,
-          style: {
-            background: "var(--background)",
-            color: "var(--foreground)",
-            border: "1px solid var(--border)",
-          },
-        }}
-      />
-      <ReactQueryDevtools initialIsOpen={false} />
-    </QueryClientProvider>
+    <QueryProvider>
+      <AuthProvider>
+        <NotificationProvider>
+          <AppContent />
+        </NotificationProvider>
+      </AuthProvider>
+    </QueryProvider>
   );
 }
 

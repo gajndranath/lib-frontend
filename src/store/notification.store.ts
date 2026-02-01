@@ -1,99 +1,81 @@
 import { create } from "zustand";
-import type { NotificationData } from "@/types/api.types";
+import type { Notification } from "@/types";
 
 interface NotificationState {
-  notifications: NotificationData[];
+  notifications: Notification[];
   unreadCount: number;
-  soundEnabled: boolean;
-  vibrationEnabled: boolean;
-  permission: NotificationPermission | null;
-  isSubscribed: boolean;
+  isPermissionGranted: boolean;
+  isWebPushSupported: boolean;
+  isFCMSupported: boolean;
 }
 
 interface NotificationActions {
-  addNotification: (notification: NotificationData) => void;
-  markAsRead: (notificationId?: string) => void;
-  clearAll: () => void;
+  addNotification: (notification: Notification) => void;
+  addNotifications: (notifications: Notification[]) => void;
+  setNotifications: (notifications: Notification[]) => void;
+  markAsRead: (notificationId: string) => void;
+  markAllAsRead: () => void;
   removeNotification: (notificationId: string) => void;
-  setSoundEnabled: (enabled: boolean) => void;
-  setVibrationEnabled: (enabled: boolean) => void;
-  setPermission: (permission: NotificationPermission) => void;
-  setIsSubscribed: (subscribed: boolean) => void;
-  updateUnreadCount: () => void;
+  clearNotifications: () => void;
+  setUnreadCount: (count: number) => void;
+  setPermissionGranted: (granted: boolean) => void;
+  setWebPushSupported: (supported: boolean) => void;
+  setFCMSupported: (supported: boolean) => void;
 }
 
 const initialState: NotificationState = {
   notifications: [],
   unreadCount: 0,
-  soundEnabled: true,
-  vibrationEnabled: true,
-  permission: null,
-  isSubscribed: false,
+  isPermissionGranted: false,
+  isWebPushSupported: "serviceWorker" in navigator && "PushManager" in window,
+  isFCMSupported: typeof window !== "undefined" && "Notification" in window,
 };
 
 export const useNotificationStore = create<
   NotificationState & NotificationActions
->((set, get) => ({
+>()((set, _get) => ({
   ...initialState,
 
-  addNotification: (notification) => {
-    set((state) => ({
-      notifications: [notification, ...state.notifications].slice(0, 50), // Keep last 50
-      unreadCount: state.unreadCount + 1,
-    }));
-
-    // Play sound if enabled
-    if (get().soundEnabled) {
-      const audio = new Audio("/notification.mp3");
-      audio.play().catch(() => {});
-    }
-
-    // Vibrate if enabled and supported
-    if (get().vibrationEnabled && "vibrate" in navigator) {
-      navigator.vibrate([200, 100, 200]);
-    }
-  },
-
-  markAsRead: (notificationId?: string) => {
+  addNotification: (notification) =>
     set((state) => {
-      if (notificationId) {
-        // Mark specific notification as read
-        const updatedNotifications = state.notifications.map((notif) =>
-          notif.id === notificationId ? { ...notif, read: true } : notif
-        );
-
-        const unreadCount = updatedNotifications.filter((n) => !n.read).length;
-
-        return {
-          notifications: updatedNotifications,
-          unreadCount,
-        };
-      } else {
-        // Mark all as read
-        const updatedNotifications = state.notifications.map((notif) => ({
-          ...notif,
-          read: true,
-        }));
-
-        return {
-          notifications: updatedNotifications,
-          unreadCount: 0,
-        };
+      if (state.notifications.some((n) => n._id === notification._id)) {
+        return state;
       }
-    });
-  },
 
-  clearAll: () => {
-    set({
-      notifications: [],
-      unreadCount: 0,
-    });
-  },
+      return {
+        notifications: [notification, ...state.notifications],
+        unreadCount: notification.read
+          ? state.unreadCount
+          : state.unreadCount + 1,
+      };
+    }),
 
-  removeNotification: (notificationId) => {
+  addNotifications: (notifications) =>
     set((state) => {
-      const updatedNotifications = state.notifications.filter(
-        (notif) => notif.id !== notificationId
+      const existingIds = new Set(state.notifications.map((n) => n._id));
+      const newNotifications = notifications.filter(
+        (n) => !existingIds.has(n._id),
+      );
+
+      return {
+        notifications: [...newNotifications, ...state.notifications],
+        unreadCount:
+          newNotifications.filter((n) => !n.read).length + state.unreadCount,
+      };
+    }),
+
+  setNotifications: (notifications) =>
+    set(() => ({
+      notifications,
+      unreadCount: notifications.filter((n) => !n.read).length,
+    })),
+
+  markAsRead: (notificationId) =>
+    set((state) => {
+      const updatedNotifications = state.notifications.map((notification) =>
+        notification._id === notificationId
+          ? { ...notification, read: true, readAt: new Date() }
+          : notification,
       );
 
       const unreadCount = updatedNotifications.filter((n) => !n.read).length;
@@ -102,27 +84,47 @@ export const useNotificationStore = create<
         notifications: updatedNotifications,
         unreadCount,
       };
-    });
-  },
+    }),
 
-  setSoundEnabled: (enabled) => {
-    set({ soundEnabled: enabled });
-  },
+  markAllAsRead: () =>
+    set((state) => ({
+      notifications: state.notifications.map((notification) => ({
+        ...notification,
+        read: true,
+        readAt: new Date(),
+      })),
+      unreadCount: 0,
+    })),
 
-  setVibrationEnabled: (enabled) => {
-    set({ vibrationEnabled: enabled });
-  },
+  removeNotification: (notificationId) =>
+    set((state) => {
+      const notification = state.notifications.find(
+        (n) => n._id === notificationId,
+      );
+      const unreadCount =
+        notification && !notification.read
+          ? state.unreadCount - 1
+          : state.unreadCount;
 
-  setPermission: (permission) => {
-    set({ permission });
-  },
+      return {
+        notifications: state.notifications.filter(
+          (n) => n._id !== notificationId,
+        ),
+        unreadCount,
+      };
+    }),
 
-  setIsSubscribed: (subscribed) => {
-    set({ isSubscribed: subscribed });
-  },
+  clearNotifications: () =>
+    set({
+      notifications: [],
+      unreadCount: 0,
+    }),
 
-  updateUnreadCount: () => {
-    const unreadCount = get().notifications.filter((n) => !n.read).length;
-    set({ unreadCount });
-  },
+  setUnreadCount: (count) => set({ unreadCount: count }),
+
+  setPermissionGranted: (granted) => set({ isPermissionGranted: granted }),
+
+  setWebPushSupported: (supported) => set({ isWebPushSupported: supported }),
+
+  setFCMSupported: (supported) => set({ isFCMSupported: supported }),
 }));

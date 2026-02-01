@@ -2,65 +2,45 @@ import { create } from "zustand";
 
 interface UIState {
   sidebarOpen: boolean;
-  notificationsOpen: boolean;
-  mobileView: boolean;
+  mobileSidebarOpen: boolean;
   theme: "light" | "dark";
-  activePage: string;
+  activeTab: string;
+  isLoading: boolean;
 }
 
 interface UIActions {
   toggleSidebar: () => void;
-  openSidebar: () => void;
-  closeSidebar: () => void;
-  toggleNotifications: () => void;
-  setMobileView: (isMobile: boolean) => void;
-  toggleTheme: () => void;
-  setActivePage: (page: string) => void;
-  resetUI: () => void;
+  toggleMobileSidebar: () => void;
+  setSidebarOpen: (open: boolean) => void;
+  setMobileSidebarOpen: (open: boolean) => void;
+  setTheme: (theme: "light" | "dark") => void;
+  setActiveTab: (tab: string) => void;
+  setLoading: (loading: boolean) => void;
 }
 
 const initialState: UIState = {
-  sidebarOpen: false,
-  notificationsOpen: false,
-  mobileView: false,
+  sidebarOpen: true,
+  mobileSidebarOpen: false,
   theme: "light",
-  activePage: "dashboard",
+  activeTab: "dashboard",
+  isLoading: false,
 };
 
-export const useUIStore = create<UIState & UIActions>((set) => ({
+export const useUIStore = create<UIState & UIActions>()((set) => ({
   ...initialState,
 
-  toggleSidebar: () => {
-    set((state) => ({ sidebarOpen: !state.sidebarOpen }));
-  },
+  toggleSidebar: () => set((state) => ({ sidebarOpen: !state.sidebarOpen })),
 
-  openSidebar: () => {
-    set({ sidebarOpen: true });
-  },
+  toggleMobileSidebar: () =>
+    set((state) => ({ mobileSidebarOpen: !state.mobileSidebarOpen })),
 
-  closeSidebar: () => {
-    set({ sidebarOpen: false });
-  },
+  setSidebarOpen: (open) => set({ sidebarOpen: open }),
 
-  toggleNotifications: () => {
-    set((state) => ({ notificationsOpen: !state.notificationsOpen }));
-  },
+  setMobileSidebarOpen: (open) => set({ mobileSidebarOpen: open }),
 
-  setMobileView: (isMobile) => {
-    set({ mobileView: isMobile });
-  },
+  setTheme: (theme) => set({ theme }),
 
-  toggleTheme: () => {
-    set((state) => ({
-      theme: state.theme === "light" ? "dark" : "light",
-    }));
-  },
+  setActiveTab: (tab) => set({ activeTab: tab }),
 
-  setActivePage: (page) => {
-    set({ activePage: page });
-  },
-
-  resetUI: () => {
-    set(initialState);
-  },
+  setLoading: (loading) => set({ isLoading: loading }),
 }));
