@@ -13,7 +13,8 @@ class SocketService {
     }
 
     const socketUrl =
-      import.meta.env.VITE_SOCKET_URL || "wss://lib-backend-j0e9.onrender.com";
+      import.meta.env.VITE_SOCKET_URL ||
+      "https://lib-backend-j0e9.onrender.com";
 
     this.socket = io(socketUrl, {
       auth: {
@@ -21,7 +22,7 @@ class SocketService {
         adminId,
         role,
       },
-      transports: ["websocket", "polling"],
+      // transports: ["websocket", "polling"],
       reconnection: true,
       reconnectionAttempts: this.maxReconnectAttempts,
       reconnectionDelay: this.reconnectDelay,
