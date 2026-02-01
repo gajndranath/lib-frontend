@@ -40,7 +40,7 @@ export const Sidebar: React.FC = () => {
   const { sidebarOpen, mobileSidebarOpen, setMobileSidebarOpen } = useUIStore();
 
   const sidebarContent = (
-    <div className="flex h-full flex-col">
+    <div className="flex h-full flex-col bg-white">
       {/* Mobile header */}
       <div className="flex items-center justify-between p-4 lg:hidden border-b">
         <div className="flex items-center gap-2">
