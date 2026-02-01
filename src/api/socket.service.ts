@@ -13,7 +13,7 @@ class SocketService {
     }
 
     const socketUrl =
-      import.meta.env.VITE_SOCKET_URL || "ws://lib-backend-j0e9.onrender.com";
+      import.meta.env.VITE_SOCKET_URL || "wss://lib-backend-j0e9.onrender.com";
 
     this.socket = io(socketUrl, {
       auth: {
