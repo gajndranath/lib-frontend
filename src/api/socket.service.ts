@@ -12,7 +12,8 @@ class SocketService {
       return this.socket;
     }
 
-    const socketUrl = import.meta.env.VITE_SOCKET_URL || "ws://localhost:8000";
+    const socketUrl =
+      import.meta.env.VITE_SOCKET_URL || "ws://lib-backend-j0e9.onrender.com";
 
     this.socket = io(socketUrl, {
       auth: {
@@ -64,10 +65,13 @@ class SocketService {
 
   off<T extends keyof SocketEvents>(
     event: T,
-    callback?: SocketEvents[T]
+    callback?: SocketEvents[T],
   ): void {
     if (callback) {
-      this.socket?.off(event as string, callback as (...args: unknown[]) => void);
+      this.socket?.off(
+        event as string,
+        callback as (...args: unknown[]) => void,
+      );
     } else {
       this.socket?.off(event as string);
     }
