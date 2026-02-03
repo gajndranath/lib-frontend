@@ -14,6 +14,9 @@ import { StudentDashboard } from "@/pages/student/StudentDashboard";
 import { StudentProfile } from "@/pages/student/StudentProfile";
 import { StudentPaymentHistory } from "@/pages/student/StudentPaymentHistory";
 import { StudentNotifications } from "@/pages/student/StudentNotifications";
+import StudentSlotChange from "@/pages/student/StudentSlotChange";
+import StudentChat from "@/pages/student/StudentChat";
+import StudentAnnouncements from "@/pages/student/StudentAnnouncements";
 // Import other pages as we create them
 import { StudentList } from "@/pages/students/StudentList";
 import { StudentForm } from "@/pages/students/StudentForm";
@@ -38,6 +41,9 @@ import { StaffManagement } from "@/pages/StaffManagement";
 import { AuditLog } from "@/pages/AuditLog";
 import { AdminReminders } from "@/pages/AdminReminders";
 import { EndOfMonthDueReport } from "@/pages/EndOfMonthDueReport";
+import SlotChangeRequests from "@/pages/SlotChangeRequests";
+import AdminChat from "@/pages/chat/AdminChat";
+import AdminAnnouncements from "@/pages/announcements/AdminAnnouncements";
 
 export const router = createBrowserRouter([
   // Student portal routes
@@ -83,6 +89,18 @@ export const router = createBrowserRouter([
             path: "notifications",
             element: <StudentNotifications />,
           },
+          {
+            path: "slot-change",
+            element: <StudentSlotChange />,
+          },
+          {
+            path: "chat",
+            element: <StudentChat />,
+          },
+          {
+            path: "announcements",
+            element: <StudentAnnouncements />,
+          },
         ],
       },
     ],
@@ -108,6 +126,14 @@ export const router = createBrowserRouter([
       {
         path: "dashboard",
         element: <Dashboard />,
+      },
+      {
+        path: "chat",
+        element: <AdminChat />,
+      },
+      {
+        path: "announcements",
+        element: <AdminAnnouncements />,
       },
       {
         path: "students",
@@ -206,6 +232,10 @@ export const router = createBrowserRouter([
       {
         path: "admin/due-report",
         element: <EndOfMonthDueReport />,
+      },
+      {
+        path: "admin/slot-change-requests",
+        element: <SlotChangeRequests />,
       },
     ],
   },

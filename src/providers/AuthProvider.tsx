@@ -1,63 +1,79 @@
-import { type ReactNode, useEffect, useState } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 import { useAuthStore } from "@/store/auth.store";
 import { adminApi } from "@/api/admin.api";
 import { socketService } from "@/api/socket.service";
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
-  const { setLoading, setAuth, clearAuth, isLoading } = useAuthStore();
+  const { setLoading, setAuth, clearAuth, isLoading, accessToken, admin } =
+    useAuthStore();
   const [initialized, setInitialized] = useState(false);
+  const [hasHydrated, setHasHydrated] = useState(
+    useAuthStore.persist.hasHydrated(),
+  );
+  const lastValidatedKey = useRef<string | null>(null);
+  const socketConnectedKey = useRef<string | null>(null);
 
   useEffect(() => {
+    const unsubscribe = useAuthStore.persist.onFinishHydration(() => {
+      setHasHydrated(true);
+    });
+    return () => {
+      unsubscribe?.();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!hasHydrated) return;
+
+    const currentKey =
+      accessToken && admin?._id ? `${accessToken}:${admin._id}` : null;
+
+    if (currentKey && lastValidatedKey.current === currentKey) {
+      return;
+    }
+
     const initializeAuth = async () => {
       try {
         setLoading(true);
 
-        // Check if we have a token
-        const token = localStorage.getItem("accessToken");
-        const storedAdmin = localStorage.getItem("admin");
-
-        if (!token || !storedAdmin) {
-          console.log("No token or admin found");
-          clearAuth();
+        // Check Zustand store for persisted auth data
+        if (!accessToken || !admin) {
+          console.log("No token or admin in store");
           setInitialized(true);
           return;
         }
 
         try {
-          // Parse stored admin
-          const _adminData = JSON.parse(storedAdmin);
-
           // Validate token by fetching profile
           const { data, error } = await adminApi.getProfile();
 
           if (error) {
             console.log("Token validation failed:", error);
-            if (error.statusCode === 401) {
-              clearAuth();
-              localStorage.removeItem("accessToken");
-              localStorage.removeItem("admin");
-            }
+            // Keep session until manual logout
             setInitialized(true);
             return;
           }
 
           if (data?.data) {
-            console.log("Token valid, setting auth");
-            console.log("Admin data from storage:", _adminData);
-            console.log("Admin data from profile fetch:", data.data);
-            setAuth(data.data, token);
+            console.log("Token valid, refreshing auth");
+            // Avoid unnecessary state updates
+            if (admin._id !== data.data._id) {
+              setAuth(data.data, accessToken);
+            }
+
+            lastValidatedKey.current = `${accessToken}:${data.data._id}`;
 
             // Connect socket
-            socketService.connect(token, data.data._id, data.data.role);
+            if (socketConnectedKey.current !== accessToken) {
+              socketService.connect(accessToken, data.data._id, data.data.role);
+              socketConnectedKey.current = accessToken;
+            }
           }
-        } catch (parseError) {
-          console.error("Error parsing stored admin:", parseError);
-          clearAuth();
-          localStorage.removeItem("admin");
+        } catch (error) {
+          console.error("Error validating token:", error);
         }
       } catch (error) {
         console.error("Auth initialization error:", error);
-        clearAuth();
       } finally {
         console.log("Auth initialization complete");
         setLoading(false);
@@ -66,7 +82,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     };
 
     initializeAuth();
-  }, [setLoading, setAuth, clearAuth]);
+  }, [hasHydrated, accessToken, admin, setLoading, setAuth, clearAuth]);
 
   // Show loading while initializing
   if (!initialized || isLoading) {

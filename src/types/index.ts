@@ -3,7 +3,7 @@ export type UserRole = "SUPER_ADMIN" | "ADMIN" | "STAFF";
 
 export interface Admin {
   _id: string;
-  name: string;
+  username: string;
   email: string;
   phone?: string;
   role: UserRole;
@@ -28,7 +28,14 @@ export interface Student {
   email?: string;
   address?: string;
   fatherName?: string;
-  slotId?: string | { _id: string; name: string };
+  slotId?:
+    | string
+    | {
+        _id: string;
+        name: string;
+        timeRange?: { start: string; end: string };
+        monthlyFee?: number;
+      };
   seatNumber?: string;
   monthlyFee: number;
   feeOverride: boolean;
@@ -166,10 +173,19 @@ export interface DueRecord {
 export type NotificationType =
   | "PAYMENT_REMINDER"
   | "PAYMENT_CONFIRMATION"
+  | "PAYMENT_DUE"
+  | "FEE_DUE"
+  | "DUE_STUDENTS"
+  | "ADMIN_REMINDER"
+  | "END_OF_MONTH_DUE"
+  | "PAYMENT_PENDING"
   | "OVERDUE_ALERT"
   | "STUDENT_REGISTRATION"
   | "SLOT_CHANGE"
   | "FEE_OVERRIDE"
+  | "CHAT_MESSAGE"
+  | "ANNOUNCEMENT"
+  | "CALL"
   | "SYSTEM_ALERT"
   | "TEST";
 
@@ -451,6 +467,74 @@ export interface OverrideFeeFormData {
   reason: string;
 }
 
+// Chat & Call Types
+export interface EncryptedPayload {
+  algorithm: "sealed_box";
+  ciphertext: string;
+}
+
+export interface ChatConversation {
+  _id: string;
+  participants: Array<{
+    userId: string;
+    userType: "Student" | "Admin";
+  }>;
+  participantsHash: string;
+  lastMessageAt: Date;
+  lastMessagePreview?: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface ChatMessage {
+  _id: string;
+  conversationId: string;
+  senderId: string;
+  senderType: "Student" | "Admin";
+  recipientId: string;
+  recipientType: "Student" | "Admin";
+  contentType?: "TEXT" | "CALL";
+  encryptedForSender: EncryptedPayload;
+  encryptedForRecipient: EncryptedPayload;
+  status: "SENT" | "DELIVERED" | "READ";
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface Announcement {
+  _id: string;
+  adminId: string;
+  title?: string;
+  body?: string;
+  targetScope: "ALL_STUDENTS" | "SLOT" | "SPECIFIC_STUDENTS";
+  slotId?: string;
+  recipientCiphertexts: Array<{
+    recipientId: string;
+    algorithm: "sealed_box";
+    titleCiphertext: string;
+    bodyCiphertext: string;
+  }>;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface CallSession {
+  _id: string;
+  callId: string;
+  initiatorId: string;
+  initiatorType: "Student" | "Admin";
+  recipientId: string;
+  recipientType: "Student" | "Admin";
+  status: "INITIATED" | "RINGING" | "ACCEPTED" | "ENDED";
+  sdpOffer?: RTCSessionDescriptionInit;
+  sdpAnswer?: RTCSessionDescriptionInit;
+  startedAt?: Date;
+  endedAt?: Date;
+  duration?: number;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 // Socket Events
 export interface SocketEvents {
   notification: (notification: Notification) => void;
@@ -458,6 +542,36 @@ export interface SocketEvents {
   new_student: (data: unknown) => void;
   fee_update: (data: unknown) => void;
   reminder_alert: (data: unknown) => void;
+  "chat:message": (data: unknown) => void;
+  "chat:sent": (data: unknown) => void;
+  "chat:status": (data: {
+    messageId: string;
+    status: "SENT" | "DELIVERED" | "READ";
+  }) => void;
+  "chat:typing": (data: unknown) => void;
+  "chat:stop_typing": (data: unknown) => void;
+  "presence:update": (data: {
+    userType: "Admin" | "Student";
+    userId: string;
+    online: boolean;
+    lastSeen?: Date | null;
+  }) => void;
+  "announcement:new": (data: unknown) => void;
+  "call:offer": (data: unknown) => void;
+  "call:offer:ack": (data: {
+    callId: string;
+    recipientId: string;
+    recipientType: "Admin" | "Student";
+    conversationId?: string;
+  }) => void;
+  "call:answer": (data: unknown) => void;
+  "call:ice": (data: unknown) => void;
+  "call:end": (data: unknown) => void;
+  "call:mute-status": (data: { isMuted: boolean }) => void;
+  "friend-request:new": (data: unknown) => void;
+  "friend-request:accepted": (data: unknown) => void;
+  "friend:removed": (data: { removedBy: string; timestamp: string }) => void;
+  "friend:blocked": (data: { blockedBy: string; timestamp: string }) => void;
   connected: (data: {
     success: boolean;
     message: string;

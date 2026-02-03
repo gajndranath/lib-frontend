@@ -113,7 +113,12 @@ export const StaffManagement: React.FC = () => {
         return data;
       } else {
         // Create
-        const { data, error } = await adminApi.registerAdmin(formData);
+        const { data, error } = await adminApi.registerAdmin({
+          username: formData.name,
+          email: formData.email,
+          phone: formData.phone || undefined,
+          role: formData.role === "SUPER_ADMIN" ? "SUPER_ADMIN" : "STAFF",
+        });
         if (error) throw error;
         return data;
       }
@@ -316,12 +321,10 @@ export const StaffManagement: React.FC = () => {
                       </TableCell>
                       <TableCell className="text-right">
                         <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="sm">
-                              <ChevronDown className="h-4 w-4" />
-                            </Button>
+                          <DropdownMenuTrigger className="inline-flex h-8 w-8 items-center justify-center rounded-md hover:bg-accent hover:text-accent-foreground">
+                            <ChevronDown className="h-4 w-4" />
                           </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
+                          <DropdownMenuContent align="end" className="bg-white">
                             <DropdownMenuItem
                               onClick={() => handleEditClick(admin)}
                             >
@@ -405,7 +408,7 @@ export const StaffManagement: React.FC = () => {
                 <SelectTrigger id="role">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="bg-white">
                   <SelectItem value="ADMIN">Admin</SelectItem>
                   <SelectItem value="SUPER_ADMIN">Super Admin</SelectItem>
                 </SelectContent>
@@ -483,7 +486,7 @@ export const StaffManagement: React.FC = () => {
                 <SelectTrigger id="edit-role">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="bg-white">
                   <SelectItem value="ADMIN">Admin</SelectItem>
                   <SelectItem value="SUPER_ADMIN">Super Admin</SelectItem>
                 </SelectContent>

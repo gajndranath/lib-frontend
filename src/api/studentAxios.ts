@@ -45,13 +45,7 @@ studentAxios.interceptors.response.use(
     const errorData = error.response?.data;
 
     if (error.response?.status === 401) {
-      localStorage.removeItem("studentAccessToken");
-      localStorage.removeItem("student");
-
-      if (!window.location.pathname.includes("/student/login")) {
-        window.location.href = "/student/login";
-      }
-
+      // Keep session until manual logout; just notify user
       toast.error("Session expired. Please login again.");
     } else if (error.response?.status === 403) {
       toast.error("Access denied. You do not have permission.");

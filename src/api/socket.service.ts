@@ -7,7 +7,7 @@ class SocketService {
   private maxReconnectAttempts = 5;
   private reconnectDelay = 1000;
 
-  connect(token: string, adminId: string, role: string): Socket {
+  private connectWithAuth(auth: Record<string, string>): Socket {
     if (this.socket?.connected) {
       return this.socket;
     }
@@ -17,11 +17,7 @@ class SocketService {
       "https://lib-backend-j0e9.onrender.com";
 
     this.socket = io(socketUrl, {
-      auth: {
-        token,
-        adminId,
-        role,
-      },
+      auth,
       secure: true,
       transports: ["websocket", "polling"],
       reconnection: true,
@@ -33,6 +29,14 @@ class SocketService {
     this.setupEventListeners();
 
     return this.socket;
+  }
+
+  connect(token: string, adminId: string, role: string): Socket {
+    return this.connectWithAuth({ token, adminId, role });
+  }
+
+  connectStudent(token: string, studentId: string): Socket {
+    return this.connectWithAuth({ token, studentId, role: "STUDENT" });
   }
 
   private setupEventListeners(): void {

@@ -4,16 +4,7 @@ const OFFLINE_URL = "/offline.html";
 const API_CACHE_NAME = "library-api-cache";
 
 // Files to cache on install
-const STATIC_ASSETS = [
-  "/",
-  "/index.html",
-  "/manifest.json",
-  "/offline.html",
-  "/favicon.ico",
-  "/icons/icon-72x72.png",
-  "/icons/icon-192x192.png",
-  "/icons/icon-512x512.png",
-];
+const STATIC_ASSETS = ["/", "/index.html", "/manifest.json", "/vite.svg"];
 
 // Install Event
 self.addEventListener("install", (event) => {
@@ -26,7 +17,7 @@ self.addEventListener("install", (event) => {
         console.log("Service Worker: Caching App Shell");
         return cache.addAll(STATIC_ASSETS);
       })
-      .then(() => self.skipWaiting())
+      .then(() => self.skipWaiting()),
   );
 });
 
@@ -44,10 +35,10 @@ self.addEventListener("activate", (event) => {
               console.log("Service Worker: Clearing old cache:", cacheName);
               return caches.delete(cacheName);
             }
-          })
+          }),
         );
       })
-      .then(() => self.clients.claim())
+      .then(() => self.clients.claim()),
   );
 });
 
@@ -80,7 +71,7 @@ self.addEventListener("fetch", (event) => {
             })
             .catch(() => {
               /* Ignore errors */
-            })
+            }),
         );
         return cachedResponse;
       }
@@ -110,7 +101,7 @@ self.addEventListener("fetch", (event) => {
             return caches.match(OFFLINE_URL);
           }
         });
-    })
+    }),
   );
 });
 
@@ -151,7 +142,7 @@ async function handleApiRequest(request) {
       {
         status: 503,
         headers: { "Content-Type": "application/json" },
-      }
+      },
     );
   }
 }
@@ -161,6 +152,7 @@ self.addEventListener("push", (event) => {
   console.log("Push notification received:", event);
 
   if (!(self.Notification && self.Notification.permission === "granted")) {
+    console.warn("Notification permission not granted");
     return;
   }
 
@@ -171,71 +163,145 @@ self.addEventListener("push", (event) => {
     console.error("Error parsing push data:", error);
     data = {
       title: "Library Management",
-      body: "New notification",
+      body: "You have a new notification",
     };
   }
 
-  const title = data.title || "Library Management";
+  const title = data.title || "Library Management System";
   const options = {
-    body: data.body || "You have a new notification",
-    icon: data.icon || "/icons/icon-192x192.png",
-    badge: data.badge || "/icons/badge-72x72.png",
+    body: data.body || data.message || "You have a new notification",
+    icon: data.icon || "/vite.svg",
+    badge: data.badge || "/vite.svg",
     data: data.data || {},
-    actions: data.actions || [],
+    actions: data.actions || [
+      { action: "open", title: "Open App" },
+      { action: "close", title: "Dismiss" },
+    ],
     vibrate: data.vibrate || [200, 100, 200],
     requireInteraction: data.requireInteraction || false,
-    tag: data.tag || "library-notification",
+    tag: data.tag || `library-notification-${Date.now()}`,
     renotify: data.renotify || true,
     timestamp: data.timestamp || Date.now(),
+    silent: false,
+    sound: data.sound || "default",
   };
 
   event.waitUntil(
-    self.registration.showNotification(title, options).then(() => {
-      // Send message to all clients
-      self.clients.matchAll().then((clients) => {
+    self.registration
+      .showNotification(title, options)
+      .then(() => {
+        console.log("Notification shown successfully");
+        // Send message to all clients that notification was received
+        return self.clients.matchAll({
+          includeUncontrolled: true,
+          type: "window",
+        });
+      })
+      .then((clients) => {
         clients.forEach((client) => {
           client.postMessage({
-            type: "PUSH_NOTIFICATION",
+            type: "PUSH_NOTIFICATION_RECEIVED",
             data: data,
+            timestamp: Date.now(),
           });
         });
-      });
-    })
+      })
+      .catch((error) => {
+        console.error("Error showing notification:", error);
+      }),
   );
 });
 
 // Notification Click Event
 self.addEventListener("notificationclick", (event) => {
-  console.log("Notification clicked:", event.notification.tag);
+  console.log(
+    "Notification clicked:",
+    event.notification.tag,
+    "Action:",
+    event.action,
+  );
   event.notification.close();
 
-  const urlToOpen = event.notification.data?.url || "/";
+  const notificationData = event.notification.data || {};
   const action = event.action;
 
-  event.waitUntil(
-    self.clients.matchAll({ type: "window" }).then((windowClients) => {
-      // Check if there's already a window/tab open
-      for (let client of windowClients) {
-        if (client.url === urlToOpen && "focus" in client) {
-          return client.focus();
-        }
-      }
+  // Determine URL based on notification type and user type
+  let urlToOpen = "/";
 
-      // Handle notification actions
-      if (action === "view") {
+  if (notificationData.type) {
+    switch (notificationData.type) {
+      case "PAYMENT_REMINDER":
+      case "PAYMENT_DUE":
+      case "FEE_DUE":
+      case "OVERDUE_ALERT":
+        urlToOpen =
+          notificationData.userType === "Student"
+            ? "/student/payment-history"
+            : "/fees/due-tracking";
+        break;
+      case "PAYMENT_CONFIRMATION":
+        urlToOpen =
+          notificationData.userType === "Student"
+            ? "/student/payment-history"
+            : "/dashboard";
+        break;
+      case "CHAT_MESSAGE":
+        urlToOpen =
+          notificationData.userType === "Student" ? "/student/chat" : "/chat";
+        break;
+      case "ANNOUNCEMENT":
+        urlToOpen =
+          notificationData.userType === "Student"
+            ? "/student/announcements"
+            : "/announcements";
+        break;
+      case "CALL":
+        urlToOpen =
+          notificationData.userType === "Student" ? "/student/chat" : "/chat";
+        break;
+      default:
+        urlToOpen = notificationData.url || "/notifications";
+    }
+  }
+
+  // Handle specific actions
+  if (action === "open") {
+    // Use the determined URL
+  } else if (action === "close") {
+    return;
+  } else if (action === "view") {
+    urlToOpen = notificationData.url || urlToOpen;
+  } else if (action === "mark_paid") {
+    urlToOpen = "/fees/mark-payment";
+  }
+
+  event.waitUntil(
+    self.clients
+      .matchAll({ type: "window", includeUncontrolled: true })
+      .then((windowClients) => {
+        for (let client of windowClients) {
+          const clientUrl = new URL(client.url);
+          const targetUrl = new URL(urlToOpen, self.location.origin);
+
+          if (clientUrl.origin === targetUrl.origin) {
+            return client.focus().then((focusedClient) => {
+              focusedClient.postMessage({
+                type: "NOTIFICATION_CLICK",
+                url: urlToOpen,
+                data: notificationData,
+              });
+              return focusedClient;
+            });
+          }
+        }
+
         if (self.clients.openWindow) {
           return self.clients.openWindow(urlToOpen);
         }
-      } else if (action === "mark_paid") {
-        // Handle mark as paid action
-        return self.clients.openWindow("/dashboard");
-      } else {
-        // Default: open the URL
-        if (self.clients.openWindow) {
-          return self.clients.openWindow(urlToOpen);
-        }
-      }
-    })
+      })
+      .catch((error) => {
+        console.error("Error handling notification click:", error);
+      }),
   );
 });
 
@@ -307,7 +373,7 @@ async function refreshDashboardData() {
         headers: {
           "Cache-Control": "no-cache",
         },
-      }
+      },
     );
 
     if (response.ok) {
@@ -319,7 +385,7 @@ async function refreshDashboardData() {
         new Request(`/api/v1/students/dashboard?month=${month}&year=${year}`),
         new Response(JSON.stringify(data), {
           headers: { "Content-Type": "application/json" },
-        })
+        }),
       );
 
       // Notify clients

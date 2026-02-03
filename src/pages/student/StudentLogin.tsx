@@ -114,33 +114,42 @@ export const StudentLogin = () => {
               <ArrowRight className="ml-2 h-4 w-4" />
             </Button>
 
-            <div className="text-center text-sm space-y-2">
-              <Button
-                type="button"
-                variant="link"
-                onClick={() => navigate("/student/register")}
-                className="text-sm"
-              >
-                New here? Create an account
-              </Button>
-              <br />
-              <Button
-                type="button"
-                variant="link"
-                onClick={() => navigate("/student/verify-email")}
-                className="text-sm"
-              >
-                Already registered? Verify email with OTP
-              </Button>
-              <br />
-              <Button
-                type="button"
-                variant="link"
-                onClick={() => navigate("/student/forgot-password")}
-                className="text-sm"
-              >
-                Forgot password?
-              </Button>
+            <div className="space-y-3">
+              <div className="text-center text-sm">
+                <span className="text-muted-foreground">
+                  Don't have an account?{" "}
+                </span>
+                <Button
+                  type="button"
+                  variant="link"
+                  onClick={() => navigate("/student/register")}
+                  className="text-primary hover:underline p-0 h-auto"
+                >
+                  Create account
+                </Button>
+              </div>
+
+              <div className="text-center text-sm">
+                <Button
+                  type="button"
+                  variant="link"
+                  onClick={() => navigate("/student/verify-email")}
+                  className="text-sm text-muted-foreground"
+                >
+                  Already registered? Verify email with OTP
+                </Button>
+              </div>
+
+              <div className="text-center text-sm">
+                <Button
+                  type="button"
+                  variant="link"
+                  onClick={() => navigate("/student/forgot-password")}
+                  className="text-sm text-muted-foreground"
+                >
+                  Forgot password?
+                </Button>
+              </div>
             </div>
           </form>
         </CardContent>

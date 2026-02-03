@@ -6,8 +6,10 @@ import {
   IndianRupee,
   Filter,
   ChevronRight,
+  Download,
 } from "lucide-react";
 import { studentAuthApi } from "@/api/studentAuth.api";
+import { useToast } from "@/hooks/useToast";
 import {
   Card,
   CardContent,
@@ -31,6 +33,28 @@ import type { Payment } from "@/types/student.types";
 export const StudentPaymentHistory = () => {
   const [page, setPage] = useState(1);
   const [statusFilter, setStatusFilter] = useState("all");
+  const toast = useToast();
+
+  const handleDownloadReceipt = async (month: number, year: number) => {
+    try {
+      const htmlBlob = await studentAuthApi.downloadPaymentReceiptPDF(
+        month,
+        year,
+      );
+      const url = window.URL.createObjectURL(htmlBlob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `receipt-${month}-${year}.html`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      toast.success("Receipt downloaded successfully");
+    } catch (error) {
+      console.error("Error downloading receipt:", error);
+      toast.error("Failed to download receipt");
+    }
+  };
 
   const { data, isLoading } = useQuery({
     queryKey: ["student-payments", page, statusFilter],
@@ -99,7 +123,7 @@ export const StudentPaymentHistory = () => {
                 <SelectTrigger className="w-40">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="bg-white">
                   <SelectItem value="all">All Status</SelectItem>
                   <SelectItem value="PAID">Paid</SelectItem>
                   <SelectItem value="DUE">Due</SelectItem>
@@ -159,6 +183,18 @@ export const StudentPaymentHistory = () => {
                     <Badge className={getStatusColor(payment.status)}>
                       {payment.status}
                     </Badge>
+                    {payment.status === "PAID" && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() =>
+                          handleDownloadReceipt(payment.month, payment.year)
+                        }
+                        title="Download Receipt"
+                      >
+                        <Download className="h-4 w-4" />
+                      </Button>
+                    )}
                     <ChevronRight className="h-5 w-5 text-muted-foreground" />
                   </div>
                 </div>

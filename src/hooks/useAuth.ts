@@ -41,26 +41,8 @@ export const useAuth = () => {
   useEffect(() => {
     if (error) {
       console.log("useAuth: Profile fetch error:", error);
-
-      // Check if error is 401 (Unauthorized)
-      const isUnauthorized =
-        (error instanceof Error &&
-          "statusCode" in error &&
-          (error as Error & { statusCode: number }).statusCode === 401) ||
-        error.message.includes("401");
-      if (isUnauthorized) {
-        console.log("useAuth: Token expired, clearing auth");
-        clearAuth();
-        localStorage.removeItem("accessToken");
-        localStorage.removeItem("admin");
-
-        // Only navigate if we're not already on login page
-        if (!location.pathname.includes("/login")) {
-          navigate("/login", { replace: true });
-        }
-      }
     }
-  }, [error, clearAuth, navigate, location]);
+  }, [error]);
 
   // Update store when profile loads
   useEffect(() => {
@@ -130,7 +112,7 @@ export const useAuth = () => {
       if (!requiredRole) return true;
       return admin.role === requiredRole;
     },
-    [admin]
+    [admin],
   );
 
   return {

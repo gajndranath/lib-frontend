@@ -676,30 +676,63 @@ export const MarkPayment: React.FC = () => {
                       <FormField
                         control={form.control}
                         name="amount"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Amount (₹)</FormLabel>
-                            <FormControl>
-                              <Input
-                                type="number"
-                                {...field}
-                                onChange={(e) => {
-                                  const value = parseFloat(e.target.value);
-                                  field.onChange(value);
-                                }}
-                              />
-                            </FormControl>
-                            <FormDescription>
-                              {dueAmount > 0 && (
-                                <span>
-                                  Total due:{" "}
-                                  <strong>{formatCurrency(dueAmount)}</strong>
-                                </span>
+                        render={({ field }) => {
+                          const paidAmount = parseFloat(
+                            field.value?.toString() || "0",
+                          );
+                          const totalDue = monthlyFee?.totalAmount || 0;
+                          const remainingDue =
+                            Math.round((totalDue - paidAmount) * 100) / 100;
+                          const isPartialPayment =
+                            paidAmount > 0 && remainingDue > 0;
+
+                          return (
+                            <FormItem>
+                              <FormLabel>Amount (₹)</FormLabel>
+                              <FormControl>
+                                <Input
+                                  type="number"
+                                  step="0.01"
+                                  {...field}
+                                  onChange={(e) => {
+                                    const value = parseFloat(e.target.value);
+                                    field.onChange(value);
+                                  }}
+                                />
+                              </FormControl>
+                              <FormDescription>
+                                {dueAmount > 0 && (
+                                  <span>
+                                    Total due:{" "}
+                                    <strong>{formatCurrency(dueAmount)}</strong>
+                                  </span>
+                                )}
+                              </FormDescription>
+                              {isPartialPayment && (
+                                <div className="mt-2 p-3 bg-orange-50 dark:bg-orange-900/20 rounded-lg">
+                                  <div className="flex items-start gap-2">
+                                    <AlertCircle className="h-4 w-4 text-orange-600 dark:text-orange-400 mt-0.5 flex-shrink-0" />
+                                    <div className="text-sm">
+                                      <p className="font-medium text-orange-800 dark:text-orange-400">
+                                        Partial Payment
+                                      </p>
+                                      <p className="text-orange-700 dark:text-orange-500 mt-1">
+                                        Paid: {formatCurrency(paidAmount)} |
+                                        Remaining Due:{" "}
+                                        {formatCurrency(remainingDue)}
+                                      </p>
+                                      <p className="text-orange-600 dark:text-orange-600 text-xs mt-1">
+                                        The remaining amount will be added to
+                                        the student&apos;s due records.
+                                      </p>
+                                    </div>
+                                  </div>
+                                </div>
                               )}
-                            </FormDescription>
-                            <FormMessage />
-                          </FormItem>
-                        )}
+                              <FormMessage />
+                            </FormItem>
+                          );
+                        }}
                       />
 
                       <FormField

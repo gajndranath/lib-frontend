@@ -332,7 +332,7 @@ export const FeeDashboard: React.FC = () => {
                 <SelectTrigger className="w-[140px]">
                   <SelectValue placeholder="Select month" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="bg-white">
                   {Array.from({ length: 12 }, (_, i) => (
                     <SelectItem key={i} value={i.toString()}>
                       {getMonthName(i)}
@@ -347,7 +347,7 @@ export const FeeDashboard: React.FC = () => {
                 <SelectTrigger className="w-[120px]">
                   <SelectValue placeholder="Select year" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="bg-white">
                   {Array.from({ length: 5 }, (_, i) => {
                     const year = new Date().getFullYear() - 2 + i;
                     return (
@@ -796,12 +796,13 @@ export const FeeDashboard: React.FC = () => {
                               </p>
                             </div>
                             <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" size="icon">
-                                  <MoreVertical className="h-4 w-4" />
-                                </Button>
+                              <DropdownMenuTrigger className="inline-flex h-9 w-9 items-center justify-center rounded-md hover:bg-accent hover:text-accent-foreground">
+                                <MoreVertical className="h-4 w-4" />
                               </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end">
+                              <DropdownMenuContent
+                                align="end"
+                                className="bg-white"
+                              >
                                 <DropdownMenuItem
                                   onSelect={() =>
                                     navigate(`/students/${fee.studentId}`)
@@ -974,12 +975,13 @@ export const FeeDashboard: React.FC = () => {
                             </TableCell>
                             <TableCell className="text-right">
                               <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                  <Button variant="ghost" size="icon">
-                                    <MoreVertical className="h-4 w-4" />
-                                  </Button>
+                                <DropdownMenuTrigger className="inline-flex h-9 w-9 items-center justify-center rounded-md hover:bg-accent hover:text-accent-foreground">
+                                  <MoreVertical className="h-4 w-4" />
                                 </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end">
+                                <DropdownMenuContent
+                                  align="end"
+                                  className="bg-white"
+                                >
                                   <DropdownMenuItem
                                     onSelect={() =>
                                       navigate(`/students/${fee.studentId}`)

@@ -6,6 +6,7 @@ import {
   AlertCircle,
   Receipt,
   Clock,
+  MapPin,
 } from "lucide-react";
 import { studentAuthApi } from "@/api/studentAuth.api";
 import {
@@ -18,12 +19,27 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatCurrency, formatDate } from "@/lib/utils";
-import type { DashboardData, DueItem, Payment } from "@/types/student.types";
+import { useStudentAuthStore } from "@/store/studentAuth.store";
+import type {
+  DashboardData,
+  DueItem,
+  Payment,
+  Student,
+} from "@/types/student.types";
 
 export const StudentDashboard = () => {
+  const { student: storedStudent } = useStudentAuthStore();
   const { data, isLoading } = useQuery({
     queryKey: ["student-dashboard"],
     queryFn: studentAuthApi.getDashboard,
+  });
+
+  const { data: profileStudent } = useQuery<Student | undefined>({
+    queryKey: ["student-profile"],
+    queryFn: async () => {
+      const { data } = await studentAuthApi.getProfile();
+      return data?.data as Student | undefined;
+    },
   });
 
   if (isLoading) {
@@ -42,7 +58,9 @@ export const StudentDashboard = () => {
 
   const dashboardData = data?.data as DashboardData | undefined;
 
-  const student = dashboardData?.student;
+  const student = profileStudent || storedStudent || dashboardData?.student;
+  const slot =
+    student && typeof student.slotId === "object" ? student.slotId : undefined;
   const feeSummary = dashboardData?.feeSummary;
   const recentPayments = dashboardData?.recentPayments || [];
   const dueItems = dashboardData?.dueItems || [];
@@ -112,6 +130,26 @@ export const StudentDashboard = () => {
               {formatCurrency(feeSummary?.advance?.remainingAmount || 0)}
             </div>
             <p className="text-xs text-muted-foreground">Available balance</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Seat & Slot</CardTitle>
+            <MapPin className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-sm font-semibold">
+              {slot?.name || "Not assigned"}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {slot?.timeRange
+                ? `${slot.timeRange.start} - ${slot.timeRange.end}`
+                : "Timing not available"}
+            </p>
+            <p className="text-xs text-muted-foreground mt-1">
+              Seat: {student?.seatNumber || "Not assigned"}
+            </p>
           </CardContent>
         </Card>
       </div>

@@ -220,6 +220,25 @@ export const StudentDetail: React.FC = () => {
     toast.info("Export functionality coming soon");
   };
 
+  // Handle download receipt
+  const handleDownloadReceipt = async (month: number, year: number) => {
+    try {
+      const htmlBlob = await feeApi.downloadReceiptPDF(id!, month, year);
+      const url = window.URL.createObjectURL(htmlBlob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `receipt-${resolvedStudent?.name || id}-${month}-${year}.html`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      toast.success("Receipt downloaded successfully");
+    } catch (error) {
+      console.error("Error downloading receipt:", error);
+      toast.error("Failed to download receipt");
+    }
+  };
+
   const resolvedStudent: Student | undefined =
     studentData && typeof studentData === "object" && "student" in studentData
       ? (studentData as { student: Student }).student
@@ -394,20 +413,19 @@ export const StudentDetail: React.FC = () => {
             <Download className="h-4 w-4" />
           </Button>
           <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="icon">
-                <MoreVertical className="h-4 w-4" />
-              </Button>
+            <DropdownMenuTrigger className="inline-flex h-10 w-10 items-center justify-center rounded-md border border-input bg-background hover:bg-accent hover:text-accent-foreground">
+              <MoreVertical className="h-4 w-4" />
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
+            <DropdownMenuContent align="end" className="bg-white">
               {hasPermission("SUPER_ADMIN") && (
                 <>
-                  <DropdownMenuItem asChild>
-                    <Link to={`/students/${student._id}/edit`}>
-                      <span className="flex items-center">
-                        <Edit className="h-4 w-4 mr-2" />
-                        Edit Student
-                      </span>
+                  <DropdownMenuItem>
+                    <Link
+                      to={`/students/${student._id}/edit`}
+                      className="flex items-center"
+                    >
+                      <Edit className="h-4 w-4 mr-2" />
+                      Edit Student
                     </Link>
                   </DropdownMenuItem>
 
@@ -901,12 +919,13 @@ export const StudentDetail: React.FC = () => {
                         </TableCell>
                         <TableCell className="text-right">
                           <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="icon">
-                                <MoreVertical className="h-4 w-4" />
-                              </Button>
+                            <DropdownMenuTrigger className="inline-flex h-9 w-9 items-center justify-center rounded-md hover:bg-accent hover:text-accent-foreground">
+                              <MoreVertical className="h-4 w-4" />
                             </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
+                            <DropdownMenuContent
+                              align="end"
+                              className="bg-white"
+                            >
                               {hasPermission("SUPER_ADMIN") && !fee.locked && (
                                 <>
                                   {fee.status !== "PAID" && (
@@ -936,10 +955,16 @@ export const StudentDetail: React.FC = () => {
                                 <FileText className="h-4 w-4 mr-2" />
                                 View Details
                               </DropdownMenuItem>
-                              <DropdownMenuItem>
-                                <Download className="h-4 w-4 mr-2" />
-                                Download Receipt
-                              </DropdownMenuItem>
+                              {fee.status === "PAID" && (
+                                <DropdownMenuItem
+                                  onClick={() =>
+                                    handleDownloadReceipt(fee.month, fee.year)
+                                  }
+                                >
+                                  <Download className="h-4 w-4 mr-2" />
+                                  Download Receipt
+                                </DropdownMenuItem>
+                              )}
                             </DropdownMenuContent>
                           </DropdownMenu>
                         </TableCell>
@@ -1195,7 +1220,7 @@ export const StudentDetail: React.FC = () => {
                 <SelectTrigger>
                   <SelectValue placeholder="Choose a slot" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="bg-white">
                   {slotsData
                     ?.filter((slot) => slot.isActive && slot.availableSeats > 0)
                     .map((slot) => (
@@ -1255,7 +1280,7 @@ export const StudentDetail: React.FC = () => {
                   <SelectTrigger>
                     <SelectValue placeholder="Select method" />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="bg-white">
                     <SelectItem value="CASH">Cash</SelectItem>
                     <SelectItem value="ONLINE">Online</SelectItem>
                     <SelectItem value="CHEQUE">Cheque</SelectItem>

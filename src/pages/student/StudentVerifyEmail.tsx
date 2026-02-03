@@ -3,7 +3,9 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { useMutation } from "@tanstack/react-query";
 import { Mail, Key, ArrowRight, Lock } from "lucide-react";
 import { studentAuthApi } from "@/api/studentAuth.api";
+import { studentChatApi } from "@/api/studentChat.api";
 import { useStudentAuthStore } from "@/store/studentAuth.store";
+import { initCrypto, getOrCreateKeyPair } from "@/lib/crypto";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -37,12 +39,22 @@ export const StudentVerifyEmail = () => {
   const verifyOtpMutation = useMutation({
     mutationFn: () =>
       studentAuthApi.verifyOtp({ email, otp, setPassword: password }),
-    onSuccess: ({ data }) => {
+    onSuccess: async ({ data }) => {
       if (data?.data) {
         const { student, accessToken } = data.data;
         setAuth(student, accessToken);
         localStorage.setItem("studentAccessToken", accessToken);
         localStorage.setItem("student", JSON.stringify(student));
+
+        // Initialize encryption keys for announcements/chat
+        try {
+          await initCrypto();
+          const keypair = await getOrCreateKeyPair();
+          await studentChatApi.setPublicKey(keypair.publicKey);
+        } catch (error) {
+          console.error("Failed to initialize encryption keys:", error);
+        }
+
         navigate("/student/dashboard");
       }
     },
@@ -68,7 +80,7 @@ export const StudentVerifyEmail = () => {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 p-4">
-      <Card className="w-full max-w-md">
+      <Card className="w-full max-w-md bg-white">
         <CardHeader className="space-y-1">
           <div className="mx-auto w-16 h-16 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center mb-4">
             <span className="text-white font-bold text-2xl">LS</span>

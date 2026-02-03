@@ -47,7 +47,7 @@ const registerSchema = z
       .regex(/[a-z]/, "Password must contain at least one lowercase letter")
       .regex(/[0-9]/, "Password must contain at least one number"),
     confirmPassword: z.string(),
-    role: z.enum(["SUPER_ADMIN", "ADMIN"]),
+    role: z.enum(["SUPER_ADMIN", "STAFF"]),
   })
   .refine((data) => data.password === data.confirmPassword, {
     message: "Passwords don't match",
@@ -78,7 +78,7 @@ export const Register: React.FC = () => {
       email: "",
       password: "",
       confirmPassword: "",
-      role: "ADMIN",
+      role: "STAFF",
     },
   });
 
@@ -131,7 +131,7 @@ export const Register: React.FC = () => {
       }
 
       const { error } = await adminApi.registerAdmin({
-        name: data.username, // Changed from username to name
+        username: data.username,
         email: data.email,
         password: data.password,
         role: data.role,
@@ -228,7 +228,7 @@ export const Register: React.FC = () => {
             <div className="mt-4 inline-flex items-center gap-2 bg-primary/10 px-4 py-2 rounded-lg">
               <div className="h-2 w-2 rounded-full bg-green-500"></div>
               <span className="text-sm font-medium">
-                Logged in as: {admin.name} ({admin.role})
+                Logged in as: {admin.username} ({admin.role})
               </span>
             </div>
           )}
@@ -415,16 +415,16 @@ export const Register: React.FC = () => {
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Role</label>
                   <Select
-                    defaultValue="ADMIN"
-                    onValueChange={(value: "SUPER_ADMIN" | "ADMIN") =>
+                    defaultValue="STAFF"
+                    onValueChange={(value: "SUPER_ADMIN" | "STAFF") =>
                       setValue("role", value)
                     }
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Select role" />
                     </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="ADMIN">Admin</SelectItem>
+                    <SelectContent className="bg-white">
+                      <SelectItem value="STAFF">Staff</SelectItem>
                       <SelectItem value="SUPER_ADMIN">Super Admin</SelectItem>
                     </SelectContent>
                   </Select>

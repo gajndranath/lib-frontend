@@ -23,6 +23,27 @@ const initialState: StudentAuthState = {
   isLoading: true,
 };
 
+// Function to securely clear sensitive data
+const clearSensitiveData = () => {
+  try {
+    localStorage.removeItem("student-auth-storage");
+    localStorage.removeItem("studentAccessToken");
+    localStorage.removeItem("student");
+    // Clear any other student auth items
+    const keys = Object.keys(localStorage);
+    keys.forEach((key) => {
+      if (
+        key.includes("student") &&
+        (key.includes("auth") || key.includes("token"))
+      ) {
+        localStorage.removeItem(key);
+      }
+    });
+  } catch (error) {
+    console.error("Error clearing sensitive data:", error);
+  }
+};
+
 export const useStudentAuthStore = create<
   StudentAuthState & StudentAuthActions
 >()(
@@ -38,13 +59,15 @@ export const useStudentAuthStore = create<
           isLoading: false,
         }),
 
-      clearAuth: () =>
+      clearAuth: () => {
+        clearSensitiveData();
         set({
           student: null,
           accessToken: null,
           isAuthenticated: false,
           isLoading: false,
-        }),
+        });
+      },
 
       setLoading: (loading) => set({ isLoading: loading }),
 
@@ -58,7 +81,39 @@ export const useStudentAuthStore = create<
       partialize: (state) => ({
         student: state.student,
         accessToken: state.accessToken,
+        isAuthenticated: state.isAuthenticated,
       }),
+      // Validate data integrity before hydration
+      onRehydrateStorage: () => {
+        return (state, error) => {
+          if (error) {
+            console.error("Error rehydrating student auth store:", error);
+            clearSensitiveData();
+          } else if (state) {
+            // Validate that both token and student exist
+            if (
+              (state.accessToken && !state.student) ||
+              (!state.accessToken && state.student)
+            ) {
+              console.warn(
+                "Student auth data integrity check failed - clearing storage",
+              );
+              clearSensitiveData();
+              state.accessToken = null;
+              state.student = null;
+              state.isAuthenticated = false;
+            } else if (state.accessToken && state.student) {
+              // Set authenticated to true if both exist
+              state.isAuthenticated = true;
+              state.isLoading = false;
+            } else {
+              // No auth data
+              state.isAuthenticated = false;
+              state.isLoading = false;
+            }
+          }
+        };
+      },
     },
   ),
 );

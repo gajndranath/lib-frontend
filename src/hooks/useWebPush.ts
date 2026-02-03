@@ -5,7 +5,7 @@ import { toast } from "sonner";
 
 export const useWebPush = () => {
   const [subscription, setSubscription] = useState<PushSubscription | null>(
-    null
+    null,
   );
   const [loading, setLoading] = useState(false);
   const { setPermissionGranted, setWebPushSupported } = useNotificationStore();
@@ -82,9 +82,7 @@ export const useWebPush = () => {
       setPermissionGranted(true);
 
       // Get service worker registration
-      const registration = await navigator.serviceWorker.register(
-        "/service-worker.js"
-      );
+      const registration = await navigator.serviceWorker.register("/sw.js");
       await navigator.serviceWorker.ready;
 
       // Get VAPID key
@@ -95,7 +93,7 @@ export const useWebPush = () => {
 
       // Convert VAPID key
       const applicationServerKey = urlBase64ToUint8Array(
-        vapidPublicKey
+        vapidPublicKey,
       ) as BufferSource;
 
       // Subscribe to push
@@ -182,7 +180,7 @@ export const useWebPush = () => {
     loading,
     isSupported: useNotificationStore((state) => state.isWebPushSupported),
     isPermissionGranted: useNotificationStore(
-      (state) => state.isPermissionGranted
+      (state) => state.isPermissionGranted,
     ),
     isSubscribed: !!subscription,
     subscribe,

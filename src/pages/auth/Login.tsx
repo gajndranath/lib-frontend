@@ -98,7 +98,7 @@ export const Login: React.FC = () => {
         error instanceof Error ? error.message : "An error occurred";
       console.error("Login error:", errorMessage);
       toast.error(
-        errorMessage || "Login failed. Please check your credentials."
+        errorMessage || "Login failed. Please check your credentials.",
       );
     } finally {
       setIsSubmitting(false);
@@ -122,14 +122,14 @@ export const Login: React.FC = () => {
           </p>
         </div>
 
-        <Card className="shadow-lg border-0">
+        <Card className="shadow-lg border-0 bg-white">
           <CardHeader className="space-y-1">
             <CardTitle className="text-2xl text-center">Sign In</CardTitle>
             <CardDescription className="text-center">
               Enter your credentials to access the dashboard
             </CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="bg-white">
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
               <div className="space-y-2">
                 <label className="text-sm font-medium">Email</label>
@@ -194,7 +194,7 @@ export const Login: React.FC = () => {
                       "ml-2 text-sm cursor-pointer",
                       rememberMe
                         ? "text-gray-900 dark:text-white"
-                        : "text-gray-600 dark:text-gray-400"
+                        : "text-gray-600 dark:text-gray-400",
                     )}
                   >
                     Remember me
@@ -225,9 +225,9 @@ export const Login: React.FC = () => {
                   Don't have an account?{" "}
                   <Link
                     to="/register"
-                    className="text-primary hover:text-primary/80 font-medium inline-flex items-center gap-1"
+                    className="text-black-600 hover:text-primary/80 font-medium inline-flex items-center gap-1"
                   >
-                    <UserPlus className="h-4 w-4" />
+                    <UserPlus className="h-4 w-4 " />
                     Create new admin account
                   </Link>
                 </div>

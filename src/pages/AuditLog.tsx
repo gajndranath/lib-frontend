@@ -36,13 +36,13 @@ import {
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/useToast";
 
-const API_BASE_URL = "http://localhost:5000/api";
+const API_BASE_URL = "http://localhost:8000/api/v1";
 
 interface AuditLog {
   _id: string;
   admin: {
     _id: string;
-    name: string;
+    username: string;
     email: string;
   };
   action: string;
@@ -189,7 +189,7 @@ export const AuditLog: React.FC = () => {
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="bg-white">
                   <SelectItem value="all">All Actions</SelectItem>
                   <SelectItem value="CREATE">Create</SelectItem>
                   <SelectItem value="UPDATE">Update</SelectItem>
@@ -210,7 +210,7 @@ export const AuditLog: React.FC = () => {
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="bg-white">
                   <SelectItem value="10">10 per page</SelectItem>
                   <SelectItem value="20">20 per page</SelectItem>
                   <SelectItem value="50">50 per page</SelectItem>
@@ -255,7 +255,7 @@ export const AuditLog: React.FC = () => {
                       <TableRow key={log._id}>
                         <TableCell>
                           <div>
-                            <p className="font-medium">{log.admin?.name}</p>
+                            <p className="font-medium">{log.admin?.username}</p>
                             <p className="text-xs text-muted-foreground">
                               {log.admin?.email}
                             </p>

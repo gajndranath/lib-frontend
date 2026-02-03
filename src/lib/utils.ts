@@ -7,12 +7,14 @@ export function cn(...inputs: ClassValue[]) {
 
 // Format currency (Indian Rupees)
 export function formatCurrency(amount: number): string {
+  const value = Number(amount);
+  const safeValue = Number.isFinite(value) ? value : 0;
   return new Intl.NumberFormat("en-IN", {
     style: "currency",
     currency: "INR",
     minimumFractionDigits: 0,
     maximumFractionDigits: 2,
-  }).format(amount);
+  }).format(safeValue);
 }
 
 // Format date
@@ -117,7 +119,7 @@ export function calculatePercentage(part: number, total: number): number {
 // Debounce function
 export function debounce<T extends (...args: unknown[]) => unknown>(
   func: T,
-  wait: number
+  wait: number,
 ): (...args: Parameters<T>) => void {
   let timeout: ReturnType<typeof setTimeout> | null = null;
 
@@ -130,7 +132,7 @@ export function debounce<T extends (...args: unknown[]) => unknown>(
 // Throttle function
 export function throttle<T extends (...args: unknown[]) => unknown>(
   func: T,
-  limit: number
+  limit: number,
 ): (...args: Parameters<T>) => void {
   let inThrottle: boolean = false;
 

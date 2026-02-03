@@ -75,7 +75,7 @@ export const FeeFilters: React.FC<FeeFiltersProps> = ({
               <SelectTrigger className="w-full sm:w-[160px]">
                 <SelectValue placeholder="Filter by status" />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="bg-white">
                 <SelectItem value="ALL">All Status</SelectItem>
                 <SelectItem value="PAID">Paid</SelectItem>
                 <SelectItem value="PENDING">Pending</SelectItem>
@@ -90,7 +90,7 @@ export const FeeFilters: React.FC<FeeFiltersProps> = ({
               <SelectTrigger className="w-full sm:w-[160px]">
                 <SelectValue placeholder="Filter by slot" />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="bg-white">
                 <SelectItem value="ALL">All Slots</SelectItem>
                 {slots?.map((slot) => (
                   <SelectItem key={slot._id} value={slot._id}>

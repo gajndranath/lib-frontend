@@ -84,4 +84,19 @@ export const notificationApi = {
       axiosInstance.put("/notification/preferences", { preferences }),
       { showSuccess: true, successMessage: "Preferences updated" },
     ),
+
+  /**
+   * Send direct notification to a student
+   * Used for sending payment reminders from DueTracking
+   */
+  sendDirectNotification: (params: {
+    studentId: string;
+    channel: "email" | "sms" | "push" | "in-app" | "all";
+    title?: string;
+    message?: string;
+  }) =>
+    apiCall<ApiResponse<null>>(
+      axiosInstance.post("/notification/send-to-student", params),
+      { showSuccess: true, successMessage: "Reminder sent successfully" },
+    ),
 };

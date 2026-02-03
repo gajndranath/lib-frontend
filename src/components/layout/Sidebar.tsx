@@ -6,6 +6,8 @@ import {
   Calendar,
   DollarSign,
   Bell,
+  MessageSquare,
+  Megaphone,
   BarChart3,
   Shield,
   FileText,
@@ -26,6 +28,8 @@ const navItems = [
   { to: "/fees", label: "Fees", icon: DollarSign },
   { to: "/analytics", label: "Analytics", icon: BarChart3 },
   { to: "/notifications", label: "Notifications", icon: Bell },
+  { to: "/chat", label: "Chat", icon: MessageSquare },
+  { to: "/announcements", label: "Announcements", icon: Megaphone },
 ];
 
 const adminNavItems = [

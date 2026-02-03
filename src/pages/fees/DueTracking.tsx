@@ -61,6 +61,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { feeApi } from "@/api/fee.api";
 import { studentApi } from "@/api/students.api";
+import { notificationApi } from "@/api/notifications.api";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/useToast";
 import {
@@ -200,19 +201,21 @@ export const DueTracking: React.FC = () => {
   }, [dueRecords]);
 
   // Mutation for sending reminder
-  // Mutation for sending reminder (using the parameters)
   const sendReminderMutation = useMutation({
     mutationFn: async ({
       studentId,
       channel,
     }: {
       studentId: string;
-      channel: string;
+      channel: "email" | "sms" | "push" | "in-app" | "all";
     }) => {
-      // In a real app, call notification API
-      // For now, simulate API call with actual parameters
-      console.log(`Sending reminder to student ${studentId} via ${channel}`);
-      return new Promise((resolve) => setTimeout(resolve, 1000));
+      // Call the actual notification API with custom message for due payments
+      return notificationApi.sendDirectNotification({
+        studentId,
+        channel,
+        title: "Payment Reminder",
+        message: `You have overdue library fees. Please clear your dues at the earliest to avoid service interruption.`,
+      });
     },
     onSuccess: () => {
       toast.success("Reminder sent successfully");
@@ -252,7 +255,10 @@ export const DueTracking: React.FC = () => {
   });
 
   // Handle send reminder
-  const handleSendReminder = (studentId: string, channel: string) => {
+  const handleSendReminder = (
+    studentId: string,
+    channel: "email" | "sms" | "push" | "in-app" | "all",
+  ) => {
     sendReminderMutation.mutate({ studentId, channel });
   };
 
@@ -445,7 +451,7 @@ export const DueTracking: React.FC = () => {
                     <SelectTrigger className="w-full sm:w-[180px]">
                       <SelectValue placeholder="Days Overdue" />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent className="bg-white">
                       <SelectItem value="all">All Overdue</SelectItem>
                       <SelectItem value="7">7+ days overdue</SelectItem>
                       <SelectItem value="15">15+ days overdue</SelectItem>
@@ -465,7 +471,7 @@ export const DueTracking: React.FC = () => {
                     <SelectTrigger className="w-full sm:w-[140px]">
                       <SelectValue placeholder="Priority" />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent className="bg-white">
                       <SelectItem value="all">All Priority</SelectItem>
                       <SelectItem value="overdue">Critical</SelectItem>
                       <SelectItem value="pending">High</SelectItem>

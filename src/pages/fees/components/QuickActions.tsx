@@ -1,5 +1,5 @@
 import React from "react";
-import { Link } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -8,7 +8,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { CreditCard, DollarSign, AlertCircle, FileText } from "lucide-react";
+import { CreditCard, DollarSign, AlertCircle } from "lucide-react";
 
 interface QuickActionsProps {
   hasPermission: (permission: string) => boolean;
@@ -17,6 +17,7 @@ interface QuickActionsProps {
 export const QuickActions: React.FC<QuickActionsProps> = ({
   hasPermission,
 }) => {
+  const navigate = useNavigate();
   const actions = [
     {
       to: "/fees/mark-payment",
@@ -36,12 +37,6 @@ export const QuickActions: React.FC<QuickActionsProps> = ({
       title: "Due Tracking",
       description: "Track overdue payments",
     },
-    {
-      to: "/fees/receipts",
-      icon: FileText,
-      title: "Receipts",
-      description: "Generate receipts",
-    },
   ];
 
   if (!hasPermission("SUPER_ADMIN")) return null;
@@ -53,23 +48,21 @@ export const QuickActions: React.FC<QuickActionsProps> = ({
         <CardDescription>Common fee management tasks</CardDescription>
       </CardHeader>
       <CardContent>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
           {actions.map((action) => (
             <Button
               key={action.to}
               variant="outline"
               className="h-auto py-4"
-              asChild
+              onClick={() => navigate(action.to)}
             >
-              <Link to={action.to} className="flex items-center">
-                <action.icon className="h-5 w-5 mr-2" />
-                <div className="text-left">
-                  <div className="font-medium">{action.title}</div>
-                  <div className="text-xs text-muted-foreground">
-                    {action.description}
-                  </div>
+              <action.icon className="h-5 w-5 mr-2" />
+              <div className="text-left">
+                <div className="font-medium">{action.title}</div>
+                <div className="text-xs text-muted-foreground">
+                  {action.description}
                 </div>
-              </Link>
+              </div>
             </Button>
           ))}
         </div>

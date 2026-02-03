@@ -45,7 +45,7 @@ export const MonthYearSelector: React.FC<MonthYearSelectorProps> = ({
               <SelectTrigger className="w-[140px]">
                 <SelectValue placeholder="Select month" />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="bg-white">
                 {Array.from({ length: 12 }, (_, i) => (
                   <SelectItem key={i} value={i.toString()}>
                     {getMonthName(i)}
@@ -60,7 +60,7 @@ export const MonthYearSelector: React.FC<MonthYearSelectorProps> = ({
               <SelectTrigger className="w-[120px]">
                 <SelectValue placeholder="Select year" />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="bg-white">
                 {years.map((y) => (
                   <SelectItem key={y} value={y.toString()}>
                     {y}

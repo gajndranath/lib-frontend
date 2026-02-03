@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import type { ApiError } from "@/types";
-import { Mail, Phone, Shield, Save, RefreshCw } from "lucide-react";
+import { Mail, Phone, Shield, Save, RefreshCw, Lock } from "lucide-react";
 import {
   Card,
   CardContent,
@@ -9,6 +9,14 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -22,16 +30,24 @@ export const Profile: React.FC = () => {
   const queryClient = useQueryClient();
   const { admin, logout } = useAuth();
   const [isEditing, setIsEditing] = useState(false);
+  const [showPasswordDialog, setShowPasswordDialog] = useState(false);
   const [formData, setFormData] = useState({
-    name: admin?.name || "",
+    username: admin?.username || "",
+    email: admin?.email || "",
     phone: admin?.phone || "",
+  });
+  const [passwordData, setPasswordData] = useState({
+    currentPassword: "",
+    newPassword: "",
+    confirmPassword: "",
   });
 
   // Update profile mutation
   const { mutate: updateProfile, isPending: isUpdating } = useMutation({
     mutationFn: async () => {
-      const { data, error } = await adminApi.updateAdmin(admin?._id || "", {
-        name: formData.name,
+      const { data, error } = await adminApi.updateOwnProfile({
+        username: formData.username,
+        email: formData.email,
         phone: formData.phone,
       });
       if (error) throw error;
@@ -47,18 +63,69 @@ export const Profile: React.FC = () => {
     },
   });
 
+  // Change password mutation
+  const { mutate: changePassword, isPending: isChangingPassword } = useMutation(
+    {
+      mutationFn: async () => {
+        if (passwordData.newPassword !== passwordData.confirmPassword) {
+          throw new Error("Passwords do not match");
+        }
+        const { data, error } = await adminApi.changePassword({
+          currentPassword: passwordData.currentPassword,
+          newPassword: passwordData.newPassword,
+        });
+        if (error) throw error;
+        return data;
+      },
+      onSuccess: () => {
+        toast.success("Password changed successfully");
+        setShowPasswordDialog(false);
+        setPasswordData({
+          currentPassword: "",
+          newPassword: "",
+          confirmPassword: "",
+        });
+      },
+      onError: (error: ApiError) => {
+        toast.error(error?.message || "Failed to change password");
+      },
+    },
+  );
+
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.name) {
-      toast.error("Name is required");
+    if (!formData.username) {
+      toast.error("Username is required");
+      return;
+    }
+    if (!formData.email) {
+      toast.error("Email is required");
       return;
     }
     updateProfile();
   };
 
+  const handlePasswordChange = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!passwordData.currentPassword || !passwordData.newPassword) {
+      toast.error("All fields are required");
+      return;
+    }
+    if (passwordData.newPassword.length < 8) {
+      toast.error("New password must be at least 8 characters");
+      return;
+    }
+    if (passwordData.newPassword !== passwordData.confirmPassword) {
+      toast.error("Passwords do not match");
+      return;
+    }
+    changePassword();
+  };
+
   const handleCancel = () => {
     setFormData({
-      name: admin?.name || "",
+      username: admin?.username || "",
+      email: admin?.email || "",
       phone: admin?.phone || "",
     });
     setIsEditing(false);
@@ -92,13 +159,13 @@ export const Profile: React.FC = () => {
             <form onSubmit={handleSave} className="space-y-6">
               <div className="grid gap-4">
                 <div>
-                  <Label htmlFor="name">Full Name</Label>
+                  <Label htmlFor="username">Username</Label>
                   <Input
-                    id="name"
-                    placeholder="Your name"
-                    value={formData.name}
+                    id="username"
+                    placeholder="Your username"
+                    value={formData.username}
                     onChange={(e) =>
-                      setFormData({ ...formData, name: e.target.value })
+                      setFormData({ ...formData, username: e.target.value })
                     }
                     required
                   />
@@ -108,13 +175,13 @@ export const Profile: React.FC = () => {
                   <Input
                     id="email"
                     type="email"
-                    value={admin?.email || ""}
-                    disabled
-                    className="bg-muted"
+                    placeholder="your@email.com"
+                    value={formData.email}
+                    onChange={(e) =>
+                      setFormData({ ...formData, email: e.target.value })
+                    }
+                    required
                   />
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Email cannot be changed
-                  </p>
                 </div>
                 <div>
                   <Label htmlFor="phone">Phone Number</Label>
@@ -157,9 +224,9 @@ export const Profile: React.FC = () => {
             <div className="space-y-4">
               <div>
                 <p className="text-sm font-medium text-muted-foreground">
-                  Full Name
+                  Username
                 </p>
-                <p className="text-lg">{admin?.name}</p>
+                <p className="text-lg">{admin?.username}</p>
               </div>
               <div>
                 <p className="text-sm font-medium text-muted-foreground">
@@ -221,26 +288,128 @@ export const Profile: React.FC = () => {
           <div>
             <Label>Password</Label>
             <p className="text-sm text-muted-foreground mb-3">
-              Manage your account password
+              Change your account password
             </p>
-            <Button variant="outline">Change Password</Button>
+            <Button
+              variant="outline"
+              onClick={() => setShowPasswordDialog(true)}
+            >
+              <Lock className="h-4 w-4 mr-2" />
+              Change Password
+            </Button>
           </div>
           <div className="pt-4 border-t">
             <Label>Two-Factor Authentication</Label>
             <p className="text-sm text-muted-foreground mb-3">
               Add an extra layer of security to your account
             </p>
-            <Button variant="outline">Coming Soon</Button>
+            <Button variant="outline" disabled>
+              Coming Soon
+            </Button>
           </div>
           <div className="pt-4 border-t">
             <Label>Sessions</Label>
             <p className="text-sm text-muted-foreground mb-3">
               Manage your active sessions and devices
             </p>
-            <Button variant="outline">Manage Sessions</Button>
+            <Button variant="outline" disabled>
+              Manage Sessions
+            </Button>
           </div>
         </CardContent>
       </Card>
+
+      {/* Change Password Dialog */}
+      <Dialog open={showPasswordDialog} onOpenChange={setShowPasswordDialog}>
+        <DialogContent className="sm:max-w-[425px]">
+          <form onSubmit={handlePasswordChange}>
+            <DialogHeader>
+              <DialogTitle>Change Password</DialogTitle>
+              <DialogDescription>
+                Enter your current password and choose a new one.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-4 py-4">
+              <div>
+                <Label htmlFor="currentPassword">Current Password</Label>
+                <Input
+                  id="currentPassword"
+                  type="password"
+                  value={passwordData.currentPassword}
+                  onChange={(e) =>
+                    setPasswordData({
+                      ...passwordData,
+                      currentPassword: e.target.value,
+                    })
+                  }
+                  required
+                />
+              </div>
+              <div>
+                <Label htmlFor="newPassword">New Password</Label>
+                <Input
+                  id="newPassword"
+                  type="password"
+                  value={passwordData.newPassword}
+                  onChange={(e) =>
+                    setPasswordData({
+                      ...passwordData,
+                      newPassword: e.target.value,
+                    })
+                  }
+                  required
+                  minLength={8}
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Must be at least 8 characters
+                </p>
+              </div>
+              <div>
+                <Label htmlFor="confirmPassword">Confirm New Password</Label>
+                <Input
+                  id="confirmPassword"
+                  type="password"
+                  value={passwordData.confirmPassword}
+                  onChange={(e) =>
+                    setPasswordData({
+                      ...passwordData,
+                      confirmPassword: e.target.value,
+                    })
+                  }
+                  required
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  setShowPasswordDialog(false);
+                  setPasswordData({
+                    currentPassword: "",
+                    newPassword: "",
+                    confirmPassword: "",
+                  });
+                }}
+                disabled={isChangingPassword}
+              >
+                Cancel
+              </Button>
+              <Button type="submit" disabled={isChangingPassword}>
+                {isChangingPassword ? (
+                  <>
+                    <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                    Changing...
+                  </>
+                ) : (
+                  "Change Password"
+                )}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
 
       {/* Danger Zone */}
       <Card className="border-red-200">

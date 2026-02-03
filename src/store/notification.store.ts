@@ -1,6 +1,9 @@
 import { create } from "zustand";
 import type { Notification } from "@/types";
 
+// ✅ RULE: Max notifications in store to prevent unbounded growth
+const MAX_NOTIFICATIONS = 100;
+
 interface NotificationState {
   notifications: Notification[];
   unreadCount: number;
@@ -42,8 +45,14 @@ export const useNotificationStore = create<
         return state;
       }
 
+      // ✅ Keep only last MAX_NOTIFICATIONS (100)
+      const updated = [notification, ...state.notifications].slice(
+        0,
+        MAX_NOTIFICATIONS,
+      );
+
       return {
-        notifications: [notification, ...state.notifications],
+        notifications: updated,
         unreadCount: notification.read
           ? state.unreadCount
           : state.unreadCount + 1,
@@ -57,17 +66,24 @@ export const useNotificationStore = create<
         (n) => !existingIds.has(n._id),
       );
 
+      // ✅ Keep only last MAX_NOTIFICATIONS (100)
+      const updated = [...newNotifications, ...state.notifications].slice(
+        0,
+        MAX_NOTIFICATIONS,
+      );
+
       return {
-        notifications: [...newNotifications, ...state.notifications],
-        unreadCount:
-          newNotifications.filter((n) => !n.read).length + state.unreadCount,
+        notifications: updated,
+        unreadCount: updated.filter((n) => !n.read).length,
       };
     }),
 
   setNotifications: (notifications) =>
     set(() => ({
-      notifications,
-      unreadCount: notifications.filter((n) => !n.read).length,
+      notifications: notifications.slice(0, MAX_NOTIFICATIONS), // ✅ Limit size
+      unreadCount: notifications
+        .slice(0, MAX_NOTIFICATIONS)
+        .filter((n) => !n.read).length,
     })),
 
   markAsRead: (notificationId) =>

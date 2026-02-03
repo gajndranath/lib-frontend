@@ -66,7 +66,6 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
 import { studentApi } from "@/api/students.api";
 import { feeApi } from "@/api/fee.api";
@@ -94,7 +93,7 @@ export const AdvanceManagement: React.FC = () => {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isApplyDialogOpen, setIsApplyDialogOpen] = useState(false);
   const [selectedAdvance, setSelectedAdvance] = useState<AdvanceBalance | null>(
-    null
+    null,
   );
 
   // Check permission
@@ -124,7 +123,7 @@ export const AdvanceManagement: React.FC = () => {
         data?.data?.students?.map(async (student) => {
           try {
             const { data: feeSummary } = await feeApi.getFeeSummary(
-              student._id
+              student._id,
             );
             return {
               ...student,
@@ -135,7 +134,7 @@ export const AdvanceManagement: React.FC = () => {
           } catch {
             return { ...student, advanceBalance: null };
           }
-        }) || []
+        }) || [],
       );
 
       return studentsWithDetails;
@@ -232,7 +231,7 @@ export const AdvanceManagement: React.FC = () => {
         }
         return acc;
       },
-      { totalAdvance: 0, utilizedAdvance: 0, remainingAdvance: 0 }
+      { totalAdvance: 0, utilizedAdvance: 0, remainingAdvance: 0 },
     );
   }, [studentsData]);
 
@@ -290,13 +289,11 @@ export const AdvanceManagement: React.FC = () => {
           <Button variant="outline" size="icon" onClick={handleExport}>
             <Download className="h-4 w-4" />
           </Button>
+          <Button onClick={() => setIsAddDialogOpen(true)}>
+            <Plus className="h-4 w-4 mr-2" />
+            Add Advance
+          </Button>
           <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-            <DialogTrigger asChild>
-              <Button>
-                <Plus className="h-4 w-4 mr-2" />
-                Add Advance
-              </Button>
-            </DialogTrigger>
             <DialogContent>
               <DialogHeader>
                 <DialogTitle>Add Advance Payment</DialogTitle>
@@ -321,7 +318,7 @@ export const AdvanceManagement: React.FC = () => {
                       <SelectTrigger>
                         <SelectValue placeholder="Select student" />
                       </SelectTrigger>
-                      <SelectContent>
+                      <SelectContent className="bg-white">
                         {studentsData?.map((student) => (
                           <SelectItem key={student._id} value={student._id}>
                             {student.name} ({student.phone})
@@ -440,7 +437,7 @@ export const AdvanceManagement: React.FC = () => {
               <span>
                 {totals.totalAdvance > 0
                   ? Math.round(
-                      (totals.utilizedAdvance / totals.totalAdvance) * 100
+                      (totals.utilizedAdvance / totals.totalAdvance) * 100,
                     )
                   : 0}
                 % of total advance
@@ -466,7 +463,7 @@ export const AdvanceManagement: React.FC = () => {
               <span>
                 {
                   filteredStudents.filter(
-                    (s) => (s.advanceBalance?.remainingAmount ?? 0) > 0
+                    (s) => (s.advanceBalance?.remainingAmount ?? 0) > 0,
                   ).length
                 }{" "}
                 students with balance
@@ -511,7 +508,7 @@ export const AdvanceManagement: React.FC = () => {
                 <SelectTrigger className="w-full sm:w-[160px]">
                   <SelectValue placeholder="Balance Status" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="bg-white">
                   <SelectItem value="all">All Balances</SelectItem>
                   <SelectItem value="has-balance">Has Balance</SelectItem>
                   <SelectItem value="no-balance">No Balance</SelectItem>
@@ -562,12 +559,10 @@ export const AdvanceManagement: React.FC = () => {
                           </p>
                         </div>
                         <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon">
-                              <MoreVertical className="h-4 w-4" />
-                            </Button>
+                          <DropdownMenuTrigger className="inline-flex h-9 w-9 items-center justify-center rounded-md hover:bg-accent hover:text-accent-foreground">
+                            <MoreVertical className="h-4 w-4" />
                           </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
+                          <DropdownMenuContent align="end" className="bg-white">
                             <DropdownMenuItem
                               onClick={() =>
                                 navigate(`/students/${student._id}`)
@@ -611,7 +606,7 @@ export const AdvanceManagement: React.FC = () => {
                             </div>
                             <div className="font-medium">
                               {formatCurrency(
-                                student.advanceBalance.totalAmount
+                                student.advanceBalance.totalAmount,
                               )}
                             </div>
                           </div>
@@ -623,7 +618,7 @@ export const AdvanceManagement: React.FC = () => {
                             <div className="font-medium text-green-600">
                               {formatCurrency(
                                 student.advanceBalance.totalAmount -
-                                  student.advanceBalance.remainingAmount
+                                  student.advanceBalance.remainingAmount,
                               )}
                             </div>
                           </div>
@@ -634,7 +629,7 @@ export const AdvanceManagement: React.FC = () => {
                             </div>
                             <div className="font-bold text-blue-600">
                               {formatCurrency(
-                                student.advanceBalance.remainingAmount
+                                student.advanceBalance.remainingAmount,
                               )}
                             </div>
                           </div>
@@ -718,7 +713,7 @@ export const AdvanceManagement: React.FC = () => {
                           {student.advanceBalance ? (
                             <span>
                               {formatCurrency(
-                                student.advanceBalance.totalAmount
+                                student.advanceBalance.totalAmount,
                               )}
                             </span>
                           ) : (
@@ -730,7 +725,7 @@ export const AdvanceManagement: React.FC = () => {
                             <span className="text-green-600">
                               {formatCurrency(
                                 student.advanceBalance.totalAmount -
-                                  student.advanceBalance.remainingAmount
+                                  student.advanceBalance.remainingAmount,
                               )}
                             </span>
                           ) : (
@@ -748,7 +743,7 @@ export const AdvanceManagement: React.FC = () => {
                               className="font-bold"
                             >
                               {formatCurrency(
-                                student.advanceBalance.remainingAmount
+                                student.advanceBalance.remainingAmount,
                               )}
                             </Badge>
                           ) : (
@@ -778,12 +773,13 @@ export const AdvanceManagement: React.FC = () => {
                         </TableCell>
                         <TableCell className="text-right">
                           <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="icon">
-                                <MoreVertical className="h-4 w-4" />
-                              </Button>
+                            <DropdownMenuTrigger className="inline-flex h-9 w-9 items-center justify-center rounded-md hover:bg-accent hover:text-accent-foreground">
+                              <MoreVertical className="h-4 w-4" />
                             </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
+                            <DropdownMenuContent
+                              align="end"
+                              className="bg-white"
+                            >
                               <DropdownMenuItem
                                 onClick={() =>
                                   navigate(`/students/${student._id}`)
@@ -807,7 +803,7 @@ export const AdvanceManagement: React.FC = () => {
                                   onClick={() => {
                                     if (student.advanceBalance) {
                                       setSelectedAdvance(
-                                        student.advanceBalance
+                                        student.advanceBalance,
                                       );
                                       setIsApplyDialogOpen(true);
                                     }
@@ -860,7 +856,7 @@ export const AdvanceManagement: React.FC = () => {
                       <span className="text-green-600">
                         {formatCurrency(
                           selectedAdvance.totalAmount -
-                            selectedAdvance.remainingAmount
+                            selectedAdvance.remainingAmount,
                         )}
                       </span>
                     </div>
@@ -884,7 +880,7 @@ export const AdvanceManagement: React.FC = () => {
                   <SelectTrigger>
                     <SelectValue placeholder="Select month" />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="bg-white">
                     {/* In a real app, list pending months */}
                     <SelectItem value="current">Current Month</SelectItem>
                     <SelectItem value="previous">Previous Month</SelectItem>

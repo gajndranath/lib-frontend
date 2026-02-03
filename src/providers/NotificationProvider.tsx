@@ -8,7 +8,8 @@ import { useSocket } from "@/hooks/useSocket";
 export const NotificationProvider = ({ children }: { children: ReactNode }) => {
   const { admin, isAuthenticated } = useAuthStore(); // ✅ Direct access
   const { setNotifications, setUnreadCount } = useNotificationStore();
-  const { checkPermission, getSubscription } = useWebPush();
+  const { checkPermission, getSubscription, subscribe, subscription } =
+    useWebPush();
   const [initialized, setInitialized] = useState(false);
   useSocket();
 
@@ -48,8 +49,22 @@ export const NotificationProvider = ({ children }: { children: ReactNode }) => {
     ) {
       checkPermission();
       getSubscription();
+
+      if ("Notification" in window && Notification.permission !== "denied") {
+        if (!subscription) {
+          subscribe();
+        }
+      }
     }
-  }, [initialized, isAuthenticated, admin, checkPermission, getSubscription]);
+  }, [
+    initialized,
+    isAuthenticated,
+    admin,
+    checkPermission,
+    getSubscription,
+    subscribe,
+    subscription,
+  ]);
 
   // Show loading while initializing (optional)
   if (!initialized) {

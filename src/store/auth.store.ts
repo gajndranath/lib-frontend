@@ -20,7 +20,25 @@ const initialState: AuthState = {
   admin: null,
   accessToken: null,
   isAuthenticated: false,
-  isLoading: true, // Start with loading true
+  isLoading: true,
+};
+
+// Function to securely clear sensitive data
+const clearSensitiveData = () => {
+  try {
+    localStorage.removeItem("auth-storage");
+    localStorage.removeItem("accessToken");
+    localStorage.removeItem("admin");
+    // Clear any other auth-related items
+    const keys = Object.keys(localStorage);
+    keys.forEach((key) => {
+      if (key.includes("auth") || key.includes("token")) {
+        localStorage.removeItem(key);
+      }
+    });
+  } catch (error) {
+    console.error("Error clearing sensitive data:", error);
+  }
 };
 
 export const useAuthStore = create<AuthState & AuthActions>()(
@@ -36,13 +54,15 @@ export const useAuthStore = create<AuthState & AuthActions>()(
           isLoading: false,
         }),
 
-      clearAuth: () =>
+      clearAuth: () => {
+        clearSensitiveData();
         set({
           admin: null,
           accessToken: null,
           isAuthenticated: false,
           isLoading: false,
-        }),
+        });
+      },
 
       setLoading: (loading) => set({ isLoading: loading }),
 
@@ -56,19 +76,41 @@ export const useAuthStore = create<AuthState & AuthActions>()(
       partialize: (state) => ({
         admin: state.admin,
         accessToken: state.accessToken,
+        isAuthenticated: state.isAuthenticated,
       }),
+      // Validate data integrity before hydration
       onRehydrateStorage: () => {
-        console.log("Auth store rehydrated from storage");
-        return (_state, error) => {
+        return (state, error) => {
           if (error) {
             console.error("Error rehydrating auth store:", error);
-          } else {
-            console.log("Auth store rehydrated successfully");
+            clearSensitiveData();
+          } else if (state) {
+            // Validate that both token and admin exist
+            if (
+              (state.accessToken && !state.admin) ||
+              (!state.accessToken && state.admin)
+            ) {
+              console.warn(
+                "Auth data integrity check failed - clearing storage",
+              );
+              clearSensitiveData();
+              state.accessToken = null;
+              state.admin = null;
+              state.isAuthenticated = false;
+            } else if (state.accessToken && state.admin) {
+              // Set authenticated to true if both exist
+              state.isAuthenticated = true;
+              state.isLoading = false;
+            } else {
+              // No auth data
+              state.isAuthenticated = false;
+              state.isLoading = false;
+            }
           }
         };
       },
-    }
-  )
+    },
+  ),
 );
 
 // Selectors

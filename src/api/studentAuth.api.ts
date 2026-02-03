@@ -1,6 +1,33 @@
 import studentAxios, { studentApiCall } from "./studentAxios";
 import type { ApiResponse, Notification, Student } from "@/types";
 
+export interface SlotChangeHistory {
+  _id: string;
+  studentId: string;
+  previousSlotId: {
+    _id: string;
+    name: string;
+    timeRange: { start: string; end: string };
+    monthlyFee: number;
+  };
+  previousSlotName: string;
+  newSlotId: {
+    _id: string;
+    name: string;
+    timeRange: { start: string; end: string };
+    monthlyFee: number;
+  };
+  newSlotName: string;
+  changeType: "ADMIN_INITIATED" | "STUDENT_REQUESTED" | "STUDENT_APPROVED";
+  changedBy: string;
+  changedByRole: "ADMIN" | "STUDENT";
+  reason?: string;
+  effectiveDate: string;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export const studentAuthApi = {
   register: (data: {
     name: string;
@@ -108,8 +135,81 @@ export const studentAuthApi = {
       studentAxios.patch("/student-auth/notifications/read-all"),
     ),
 
+  getVapidKey: () =>
+    studentApiCall<ApiResponse<{ publicKey: string }>>(
+      studentAxios.get("/student-auth/notifications/vapid-key"),
+    ),
+
+  savePushSubscription: (data: {
+    subscription: PushSubscriptionJSON;
+    type?: "web" | "fcm";
+    deviceInfo?: Record<string, unknown>;
+  }) =>
+    studentApiCall<ApiResponse<null>>(
+      studentAxios.post("/student-auth/notifications/subscribe", data),
+      { showSuccess: true, successMessage: "Subscription saved" },
+    ),
+
+  removePushSubscription: (type?: "web" | "fcm") =>
+    studentApiCall<ApiResponse<null>>(
+      studentAxios.post("/student-auth/notifications/unsubscribe", { type }),
+      { showSuccess: true, successMessage: "Subscription removed" },
+    ),
+
   verifyPhone: (data: { idToken: string }) =>
     studentApiCall<ApiResponse<Student>>(
       studentAxios.post("/student-auth/verify-phone", data),
     ),
+
+  // Slot change requests
+  requestSlotChange: (data: { newSlotId: string; reason?: string }) =>
+    studentApiCall<
+      ApiResponse<{
+        message: string;
+        request: SlotChangeHistory;
+        currentSlot: { id: string; name: string };
+        requestedSlot: { id: string; name: string };
+      }>
+    >(studentAxios.post("/student-auth/slot/request-change", data), {
+      showSuccess: true,
+      successMessage: "Slot change request submitted successfully",
+    }),
+
+  getMySlotChangeHistory: () =>
+    studentApiCall<ApiResponse<SlotChangeHistory[]>>(
+      studentAxios.get("/student-auth/slot/change-history"),
+    ),
+
+  listChatStudents: () =>
+    studentApiCall<ApiResponse<Array<{ _id: string; name: string }>>>(
+      studentAxios.get("/student-auth/chat/students"),
+    ),
+
+  listChatAdmins: () =>
+    studentApiCall<ApiResponse<Array<{ _id: string; username: string }>>>(
+      studentAxios.get("/student-auth/chat/admins"),
+    ),
+
+  getPaymentReceipt: (month: number, year: number) =>
+    studentApiCall<
+      ApiResponse<{
+        receiptNumber: string;
+        studentName: string;
+        studentPhone: string;
+        monthYear: string;
+        amount: number;
+        paymentDate: string;
+        paymentMethod: string;
+        transactionId?: string;
+        remarks?: string;
+      }>
+    >(studentAxios.get(`/student-auth/payments/${month}/${year}/receipt`)),
+
+  downloadPaymentReceiptPDF: async (month: number, year: number) => {
+    const response = await studentAxios.get(
+      `/student-auth/payments/${month}/${year}/receipt-pdf`,
+      { responseType: "blob" },
+    );
+    return response.data;
+  },
 };

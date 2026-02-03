@@ -336,7 +336,7 @@ export const SlotList: React.FC = () => {
                 <SelectTrigger className="w-full sm:w-[140px]">
                   <SelectValue placeholder="Status" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="bg-white">
                   <SelectItem value="ALL">All Status</SelectItem>
                   <SelectItem value="ACTIVE">Active</SelectItem>
                   <SelectItem value="INACTIVE">Inactive</SelectItem>
@@ -401,28 +401,28 @@ export const SlotList: React.FC = () => {
                           </p>
                         </div>
                         <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon">
-                              <MoreVertical className="h-4 w-4" />
-                            </Button>
+                          <DropdownMenuTrigger className="inline-flex h-9 w-9 items-center justify-center rounded-md hover:bg-accent hover:text-accent-foreground">
+                            <MoreVertical className="h-4 w-4" />
                           </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem asChild>
-                              <Link to={`/slots/${slot._id}`}>
-                                <span className="flex items-center">
-                                  <Users className="h-4 w-4 mr-2" />
-                                  View Details
-                                </span>
+                          <DropdownMenuContent align="end" className="bg-white">
+                            <DropdownMenuItem>
+                              <Link
+                                to={`/slots/${slot._id}`}
+                                className="flex items-center"
+                              >
+                                <Users className="h-4 w-4 mr-2" />
+                                View Details
                               </Link>
                             </DropdownMenuItem>
                             {hasPermission("SUPER_ADMIN") && (
                               <>
-                                <DropdownMenuItem asChild>
-                                  <Link to={`/slots/${slot._id}/edit`}>
-                                    <span className="flex items-center">
-                                      <Edit className="h-4 w-4 mr-2" />
-                                      Edit
-                                    </span>
+                                <DropdownMenuItem>
+                                  <Link
+                                    to={`/slots/${slot._id}/edit`}
+                                    className="flex items-center"
+                                  >
+                                    <Edit className="h-4 w-4 mr-2" />
+                                    Edit
                                   </Link>
                                 </DropdownMenuItem>
                                 {slot.isActive && (
@@ -560,28 +560,31 @@ export const SlotList: React.FC = () => {
                         </TableCell>
                         <TableCell className="text-right">
                           <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="icon">
-                                <MoreVertical className="h-4 w-4" />
-                              </Button>
+                            <DropdownMenuTrigger className="inline-flex h-9 w-9 items-center justify-center rounded-md hover:bg-accent hover:text-accent-foreground">
+                              <MoreVertical className="h-4 w-4" />
                             </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem asChild>
-                                <Link to={`/slots/${slot._id}`}>
-                                  <span className="flex items-center">
-                                    <Users className="h-4 w-4 mr-2" />
-                                    View Details
-                                  </span>
+                            <DropdownMenuContent
+                              align="end"
+                              className="bg-white"
+                            >
+                              <DropdownMenuItem>
+                                <Link
+                                  to={`/slots/${slot._id}`}
+                                  className="flex items-center"
+                                >
+                                  <Users className="h-4 w-4 mr-2" />
+                                  View Details
                                 </Link>
                               </DropdownMenuItem>
                               {hasPermission("SUPER_ADMIN") && (
                                 <>
-                                  <DropdownMenuItem asChild>
-                                    <Link to={`/slots/${slot._id}/edit`}>
-                                      <span className="flex items-center">
-                                        <Edit className="h-4 w-4 mr-2" />
-                                        Edit
-                                      </span>
+                                  <DropdownMenuItem>
+                                    <Link
+                                      to={`/slots/${slot._id}/edit`}
+                                      className="flex items-center"
+                                    >
+                                      <Edit className="h-4 w-4 mr-2" />
+                                      Edit
                                     </Link>
                                   </DropdownMenuItem>
                                   {slot.isActive && (

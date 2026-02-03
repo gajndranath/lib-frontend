@@ -269,7 +269,7 @@ export const Dashboard: React.FC = () => {
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
           <p className="text-muted-foreground">
-            Welcome back, {admin?.name}. Here's what's happening with your
+            Welcome back, {admin?.username}. Here's what's happening with your
             library today.
           </p>
         </div>
@@ -282,7 +282,7 @@ export const Dashboard: React.FC = () => {
               <SelectTrigger className="w-[140px]">
                 <SelectValue placeholder="Select month" />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="bg-white">
                 {Array.from({ length: 12 }, (_, i) => (
                   <SelectItem key={i} value={i.toString()}>
                     {getMonthName(i)}
@@ -297,7 +297,7 @@ export const Dashboard: React.FC = () => {
               <SelectTrigger className="w-[120px]">
                 <SelectValue placeholder="Select year" />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="bg-white">
                 {Array.from({ length: 5 }, (_, i) => {
                   const year = new Date().getFullYear() - 2 + i;
                   return (
@@ -316,12 +316,10 @@ export const Dashboard: React.FC = () => {
             <Download className="h-4 w-4" />
           </Button>
           <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="icon">
-                <MoreVertical className="h-4 w-4" />
-              </Button>
+            <DropdownMenuTrigger className="inline-flex h-10 w-10 items-center justify-center rounded-md border border-input bg-background hover:bg-accent hover:text-accent-foreground">
+              <MoreVertical className="h-4 w-4" />
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
+            <DropdownMenuContent align="end" className="bg-white">
               <DropdownMenuItem onClick={() => toast.info("Coming soon")}>
                 Generate Report
               </DropdownMenuItem>
@@ -854,7 +852,7 @@ export const Dashboard: React.FC = () => {
                 <TableCell className="font-medium">
                   Student Registration
                 </TableCell>
-                <TableCell>{admin?.name}</TableCell>
+                <TableCell>{admin?.username}</TableCell>
                 <TableCell>New Student</TableCell>
                 <TableCell>Just now</TableCell>
                 <TableCell>
@@ -881,7 +879,7 @@ export const Dashboard: React.FC = () => {
               </TableRow>
               <TableRow>
                 <TableCell className="font-medium">Slot Update</TableCell>
-                <TableCell>{admin?.name}</TableCell>
+                <TableCell>{admin?.username}</TableCell>
                 <TableCell>Morning Slot</TableCell>
                 <TableCell>Yesterday</TableCell>
                 <TableCell>

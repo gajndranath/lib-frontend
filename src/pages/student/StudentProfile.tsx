@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { User, Mail, Phone, MapPin, Edit, Save, X } from "lucide-react";
 import { studentAuthApi } from "@/api/studentAuth.api";
+import type { Student } from "@/types/student.types";
 import {
   Card,
   CardContent,
@@ -18,7 +19,7 @@ import { toast } from "sonner";
 export const StudentProfile = () => {
   const queryClient = useQueryClient();
   const [isEditing, setIsEditing] = useState(false);
-  const [formData, setFormData] = useState({
+  const [draft, setDraft] = useState({
     name: "",
     phone: "",
     email: "",
@@ -26,21 +27,11 @@ export const StudentProfile = () => {
     fatherName: "",
   });
 
-  const { data: student, isLoading } = useQuery({
+  const { data: student, isLoading } = useQuery<Student | undefined>({
     queryKey: ["student-profile"],
     queryFn: async () => {
       const { data } = await studentAuthApi.getProfile();
-      const profile = data?.data;
-      if (profile) {
-        setFormData({
-          name: profile.name || "",
-          phone: profile.phone || "",
-          email: profile.email || "",
-          address: profile.address || "",
-          fatherName: profile.fatherName || "",
-        });
-      }
-      return profile;
+      return data?.data as Student | undefined;
     },
   });
 
@@ -54,12 +45,25 @@ export const StudentProfile = () => {
   });
 
   const handleSave = () => {
-    updateMutation.mutate(formData);
+    updateMutation.mutate(draft);
+  };
+
+  const handleEdit = () => {
+    if (student) {
+      setDraft({
+        name: student.name || "",
+        phone: student.phone || "",
+        email: student.email || "",
+        address: student.address || "",
+        fatherName: student.fatherName || "",
+      });
+    }
+    setIsEditing(true);
   };
 
   const handleCancel = () => {
     if (student) {
-      setFormData({
+      setDraft({
         name: student.name || "",
         phone: student.phone || "",
         email: student.email || "",
@@ -79,6 +83,17 @@ export const StudentProfile = () => {
     );
   }
 
+  const slot =
+    student && typeof student.slotId === "object" ? student.slotId : undefined;
+
+  const displayData = {
+    name: isEditing ? draft.name : student?.name || "",
+    fatherName: isEditing ? draft.fatherName : student?.fatherName || "",
+    email: isEditing ? draft.email : student?.email || "",
+    phone: isEditing ? draft.phone : student?.phone || "",
+    address: isEditing ? draft.address : student?.address || "",
+  };
+
   return (
     <div className="space-y-6 p-6">
       <div className="flex justify-between items-center">
@@ -89,7 +104,7 @@ export const StudentProfile = () => {
           </p>
         </div>
         {!isEditing ? (
-          <Button onClick={() => setIsEditing(true)}>
+          <Button onClick={handleEdit}>
             <Edit className="mr-2 h-4 w-4" />
             Edit Profile
           </Button>
@@ -122,10 +137,8 @@ export const StudentProfile = () => {
                 <User className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                 <Input
                   id="name"
-                  value={formData.name}
-                  onChange={(e) =>
-                    setFormData({ ...formData, name: e.target.value })
-                  }
+                  value={displayData.name}
+                  onChange={(e) => setDraft({ ...draft, name: e.target.value })}
                   disabled={!isEditing}
                   className="pl-10"
                 />
@@ -138,9 +151,9 @@ export const StudentProfile = () => {
                 <User className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                 <Input
                   id="fatherName"
-                  value={formData.fatherName}
+                  value={displayData.fatherName}
                   onChange={(e) =>
-                    setFormData({ ...formData, fatherName: e.target.value })
+                    setDraft({ ...draft, fatherName: e.target.value })
                   }
                   disabled={!isEditing}
                   className="pl-10"
@@ -155,9 +168,9 @@ export const StudentProfile = () => {
                 <Input
                   id="email"
                   type="email"
-                  value={formData.email}
+                  value={displayData.email}
                   onChange={(e) =>
-                    setFormData({ ...formData, email: e.target.value })
+                    setDraft({ ...draft, email: e.target.value })
                   }
                   disabled={!isEditing}
                   className="pl-10"
@@ -171,9 +184,9 @@ export const StudentProfile = () => {
                 <Phone className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                 <Input
                   id="phone"
-                  value={formData.phone}
+                  value={displayData.phone}
                   onChange={(e) =>
-                    setFormData({ ...formData, phone: e.target.value })
+                    setDraft({ ...draft, phone: e.target.value })
                   }
                   disabled={!isEditing}
                   className="pl-10"
@@ -187,14 +200,47 @@ export const StudentProfile = () => {
                 <MapPin className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                 <Input
                   id="address"
-                  value={formData.address}
+                  value={displayData.address}
                   onChange={(e) =>
-                    setFormData({ ...formData, address: e.target.value })
+                    setDraft({ ...draft, address: e.target.value })
                   }
                   disabled={!isEditing}
                   className="pl-10"
                 />
               </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Library Slot Information</CardTitle>
+          <CardDescription>Seat and timing details</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="space-y-1">
+              <p className="text-sm text-muted-foreground">Slot Name</p>
+              <p className="font-medium">{slot?.name || "Not assigned"}</p>
+            </div>
+            <div className="space-y-1">
+              <p className="text-sm text-muted-foreground">Timing</p>
+              <p className="font-medium">
+                {slot?.timeRange
+                  ? `${slot.timeRange.start} - ${slot.timeRange.end}`
+                  : "Not available"}
+              </p>
+            </div>
+            <div className="space-y-1">
+              <p className="text-sm text-muted-foreground">Seat Number</p>
+              <p className="font-medium">
+                {student?.seatNumber || "Not assigned"}
+              </p>
+            </div>
+            <div className="space-y-1">
+              <p className="text-sm text-muted-foreground">Monthly Fee</p>
+              <p className="font-medium">₹{student?.monthlyFee ?? 0}</p>
             </div>
           </div>
         </CardContent>

@@ -195,7 +195,7 @@ export const Notifications: React.FC = () => {
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="bg-white">
                   <SelectItem value="all">All Types</SelectItem>
                   <SelectItem value="PAYMENT_REMINDER">
                     Payment Reminder
@@ -212,7 +212,7 @@ export const Notifications: React.FC = () => {
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="bg-white">
                   <SelectItem value="all">All Status</SelectItem>
                   <SelectItem value="unread">Unread Only</SelectItem>
                 </SelectContent>

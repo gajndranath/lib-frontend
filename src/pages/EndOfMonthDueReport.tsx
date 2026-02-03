@@ -114,7 +114,7 @@ export const EndOfMonthDueReport: React.FC = () => {
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="bg-white">
                 {months.map((month, idx) => (
                   <SelectItem key={idx} value={idx.toString()}>
                     {month}
@@ -129,7 +129,7 @@ export const EndOfMonthDueReport: React.FC = () => {
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="bg-white">
                 {years.map((year) => (
                   <SelectItem key={year} value={year.toString()}>
                     {year}
@@ -168,7 +168,7 @@ export const EndOfMonthDueReport: React.FC = () => {
               <CardContent>
                 <div className="text-3xl font-bold flex items-center gap-2">
                   <IndianRupee className="h-8 w-8 text-green-600" />
-                  {summary.totalDueAmount.toLocaleString("en-IN")}
+                  {(summary.totalDueAmount || 0).toLocaleString("en-IN")}
                 </div>
               </CardContent>
             </Card>
@@ -183,7 +183,8 @@ export const EndOfMonthDueReport: React.FC = () => {
                 <div className="text-3xl font-bold flex items-center gap-2">
                   <IndianRupee className="h-8 w-8 text-blue-600" />
                   {Math.round(
-                    summary.totalDueAmount / summary.totalDueStudents,
+                    (summary.totalDueAmount || 0) /
+                      (summary.totalDueStudents || 1),
                   ).toLocaleString("en-IN")}
                 </div>
               </CardContent>
@@ -235,10 +236,10 @@ export const EndOfMonthDueReport: React.FC = () => {
                         <TableCell>{fee.studentId.email}</TableCell>
                         <TableCell>{fee.studentId.phone}</TableCell>
                         <TableCell>
-                          ₹{fee.baseFee.toLocaleString("en-IN")}
+                          ₹{(fee.baseFee || 0).toLocaleString("en-IN")}
                         </TableCell>
                         <TableCell className="font-semibold">
-                          ₹{fee.totalAmount.toLocaleString("en-IN")}
+                          ₹{(fee.totalAmount || 0).toLocaleString("en-IN")}
                         </TableCell>
                         <TableCell>
                           <Badge

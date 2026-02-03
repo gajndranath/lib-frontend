@@ -70,7 +70,7 @@ export const Header: React.FC = () => {
                 Library Management
               </h1>
               <p className="text-xs text-muted-foreground truncate max-w-[200px] lg:max-w-none">
-                Welcome, {admin?.name}
+                Welcome, {admin?.username}
               </p>
             </div>
           </div>
@@ -90,7 +90,7 @@ export const Header: React.FC = () => {
               {admin?.role}
             </Badge>
             <div className="hidden xl:flex flex-col text-right">
-              <span className="text-sm font-medium">{admin?.name}</span>
+              <span className="text-sm font-medium">{admin?.username}</span>
               <span className="text-xs text-muted-foreground truncate max-w-[150px]">
                 {admin?.email}
               </span>
@@ -125,7 +125,7 @@ export const Header: React.FC = () => {
             <DropdownMenuContent align="end" className="w-56 bg-white">
               <DropdownMenuLabel>
                 <div className="flex flex-col space-y-1">
-                  <p className="text-sm font-medium">{admin?.name}</p>
+                  <p className="text-sm font-medium">{admin?.username}</p>
                   <p className="text-xs text-muted-foreground truncate">
                     {admin?.email}
                   </p>

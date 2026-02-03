@@ -374,7 +374,7 @@ export const Analytics: React.FC = () => {
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="bg-white">
                   {Array.from({ length: 12 }, (_, i) => (
                     <SelectItem key={i} value={i.toString()}>
                       {getMonthName(i)}
@@ -394,7 +394,7 @@ export const Analytics: React.FC = () => {
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="bg-white">
                   {[2024, 2025, 2026].map((year) => (
                     <SelectItem key={year} value={year.toString()}>
                       {year}
@@ -414,7 +414,7 @@ export const Analytics: React.FC = () => {
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="bg-white">
                   {Array.from({ length: 12 }, (_, i) => (
                     <SelectItem key={i} value={i.toString()}>
                       {getMonthName(i)}
@@ -432,7 +432,7 @@ export const Analytics: React.FC = () => {
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="bg-white">
                   {[2024, 2025, 2026].map((year) => (
                     <SelectItem key={year} value={year.toString()}>
                       {year}

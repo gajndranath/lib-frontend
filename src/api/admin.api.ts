@@ -19,13 +19,31 @@ export const adminApi = {
   getProfile: () =>
     apiCall<ApiResponse<Admin>>(axiosInstance.get("/admin/profile")),
 
+  // Update own profile
+  updateOwnProfile: (data: {
+    username?: string;
+    email?: string;
+    phone?: string;
+  }) =>
+    apiCall<ApiResponse<Admin>>(axiosInstance.patch("/admin/profile", data), {
+      showSuccess: true,
+      successMessage: "Profile updated successfully",
+    }),
+
+  // Change password
+  changePassword: (data: { currentPassword: string; newPassword: string }) =>
+    apiCall<ApiResponse<null>>(
+      axiosInstance.post("/admin/profile/change-password", data),
+      { showSuccess: true, successMessage: "Password changed successfully" },
+    ),
+
   // Register new admin (SUPER_ADMIN only)
   registerAdmin: (data: {
-    name: string;
+    username: string;
     email: string;
     password?: string;
     phone?: string;
-    role?: "SUPER_ADMIN" | "ADMIN";
+    role?: "SUPER_ADMIN" | "STAFF";
   }) =>
     apiCall<ApiResponse<Admin>>(axiosInstance.post("/admin/register", data), {
       showSuccess: true,

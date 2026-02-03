@@ -2,15 +2,23 @@
 
 export interface Student {
   _id: string;
-  libraryId: string;
+  libraryId?: string;
   name: string;
   email?: string;
   phone?: string;
   address?: string;
   fatherName?: string;
+  seatNumber?: string;
   monthlyFee: number;
-  status: "active" | "inactive" | "suspended";
-  slotId?: string;
+  status: "ACTIVE" | "INACTIVE" | "ARCHIVED";
+  slotId?:
+    | string
+    | {
+        _id: string;
+        name: string;
+        timeRange: { start: string; end: string };
+        monthlyFee?: number;
+      };
   joiningDate: string;
   emailVerified?: boolean;
   phoneVerified?: boolean;
@@ -75,6 +83,12 @@ export interface StudentNotification {
   type:
     | "PAYMENT_REMINDER"
     | "PAYMENT_CONFIRMATION"
+    | "PAYMENT_DUE"
+    | "FEE_DUE"
+    | "DUE_STUDENTS"
+    | "ADMIN_REMINDER"
+    | "END_OF_MONTH_DUE"
+    | "PAYMENT_PENDING"
     | "OVERDUE_ALERT"
     | "STUDENT_REGISTRATION"
     | "SLOT_CHANGE"

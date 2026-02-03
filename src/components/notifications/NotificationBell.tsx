@@ -27,10 +27,19 @@ export const NotificationBell: React.FC = () => {
     const colors: Record<NotificationType, string> = {
       PAYMENT_REMINDER: "bg-yellow-500",
       PAYMENT_CONFIRMATION: "bg-green-500",
+      PAYMENT_DUE: "bg-orange-500",
+      FEE_DUE: "bg-orange-500",
+      DUE_STUDENTS: "bg-red-500",
+      ADMIN_REMINDER: "bg-indigo-500",
+      END_OF_MONTH_DUE: "bg-rose-500",
+      PAYMENT_PENDING: "bg-amber-500",
       OVERDUE_ALERT: "bg-red-500",
       STUDENT_REGISTRATION: "bg-blue-500",
       SLOT_CHANGE: "bg-purple-500",
       FEE_OVERRIDE: "bg-amber-500",
+      CHAT_MESSAGE: "bg-sky-500",
+      ANNOUNCEMENT: "bg-violet-500",
+      CALL: "bg-emerald-500",
       SYSTEM_ALERT: "bg-gray-500",
       TEST: "bg-gray-400",
     };
@@ -52,23 +61,19 @@ export const NotificationBell: React.FC = () => {
 
   return (
     <Popover open={isOpen} onOpenChange={handleOpenChange}>
-      <PopoverTrigger asChild>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="relative"
-          aria-label="Notifications"
-        >
-          <Bell className="h-5 w-5" />
-          {unreadCountMemo > 0 && (
-            <Badge
-              variant="destructive"
-              className="absolute -top-1 -right-1 h-5 w-5 p-0 flex items-center justify-center text-xs"
-            >
-              {unreadCountMemo}
-            </Badge>
-          )}
-        </Button>
+      <PopoverTrigger
+        className="relative inline-flex h-10 w-10 items-center justify-center rounded-md hover:bg-accent"
+        aria-label="Notifications"
+      >
+        <Bell className="h-5 w-5" />
+        {unreadCountMemo > 0 && (
+          <Badge
+            variant="destructive"
+            className="absolute -top-1 -right-1 h-5 w-5 p-0 flex items-center justify-center text-xs"
+          >
+            {unreadCountMemo}
+          </Badge>
+        )}
       </PopoverTrigger>
       <PopoverContent className="w-80 p-0 bg-white" align="end">
         <div className="flex items-center justify-between p-4 border-b">

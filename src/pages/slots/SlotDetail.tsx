@@ -79,7 +79,7 @@ export const SlotDetail: React.FC = () => {
   const [activeTab, setActiveTab] = useState("overview");
   const [deleteDialog, setDeleteDialog] = useState(false);
   const [statusFilter, setStatusFilter] = useState<StudentStatus | "ALL">(
-    "ALL"
+    "ALL",
   );
   const [deactivateReason, setDeactivateReason] = useState("");
 
@@ -115,7 +115,7 @@ export const SlotDetail: React.FC = () => {
       if (!id) throw new Error("Slot ID is required");
       const { error } = await slotApi.deleteSlot(
         id,
-        "Deleted from slot detail page"
+        "Deleted from slot detail page",
       );
       if (error) throw error;
     },
@@ -203,13 +203,13 @@ export const SlotDetail: React.FC = () => {
 
   // Calculate stats
   const activeStudents = filteredStudents.filter(
-    (s: typeof students[0]) => s.status === "ACTIVE"
+    (s: (typeof students)[0]) => s.status === "ACTIVE",
   ).length;
   const inactiveStudents = filteredStudents.filter(
-    (s: typeof students[0]) => s.status === "INACTIVE"
+    (s: (typeof students)[0]) => s.status === "INACTIVE",
   ).length;
   const archivedStudents = filteredStudents.filter(
-    (s: typeof students[0]) => s.status === "ARCHIVED"
+    (s: (typeof students)[0]) => s.status === "ARCHIVED",
   ).length;
 
   // Calculate collection rate
@@ -255,12 +255,10 @@ export const SlotDetail: React.FC = () => {
             <Download className="h-4 w-4" />
           </Button>
           <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="icon">
-                <MoreVertical className="h-4 w-4" />
-              </Button>
+            <DropdownMenuTrigger className="inline-flex h-10 w-10 items-center justify-center rounded-md border border-input bg-background hover:bg-accent hover:text-accent-foreground">
+              <MoreVertical className="h-4 w-4" />
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
+            <DropdownMenuContent align="end" className="bg-white">
               {hasPermission("SUPER_ADMIN") && (
                 <>
                   <DropdownMenuItem>
@@ -484,8 +482,8 @@ export const SlotDetail: React.FC = () => {
                         occupancy.occupancyPercentage >= 90
                           ? "bg-red-500"
                           : occupancy.occupancyPercentage >= 70
-                          ? "bg-yellow-500"
-                          : "bg-green-500"
+                            ? "bg-yellow-500"
+                            : "bg-green-500"
                       }`}
                       style={{ width: `${occupancy.occupancyPercentage}%` }}
                     />
@@ -543,7 +541,7 @@ export const SlotDetail: React.FC = () => {
                     </span>
                     <span className="font-bold text-green-600">
                       {formatCurrency(
-                        slot.monthlyFee * occupancy.occupiedSeats
+                        slot.monthlyFee * occupancy.occupiedSeats,
                       )}
                     </span>
                   </div>
@@ -570,7 +568,7 @@ export const SlotDetail: React.FC = () => {
                     </div>
                     <div className="text-2xl font-bold text-green-600">
                       {formatCurrency(
-                        slot.monthlyFee * occupancy.occupiedSeats
+                        slot.monthlyFee * occupancy.occupiedSeats,
                       )}
                     </div>
                     <div className="text-xs text-muted-foreground">
@@ -622,43 +620,45 @@ export const SlotDetail: React.FC = () => {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {filteredStudents.slice(0, 3).map((student: typeof students[0]) => (
-                  <div
-                    key={student._id}
-                    className="flex items-center justify-between p-3 rounded-lg bg-muted/50"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
-                        <span className="font-medium text-primary">
-                          {student.name.charAt(0).toUpperCase()}
-                        </span>
+                {filteredStudents
+                  .slice(0, 3)
+                  .map((student: (typeof students)[0]) => (
+                    <div
+                      key={student._id}
+                      className="flex items-center justify-between p-3 rounded-lg bg-muted/50"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
+                          <span className="font-medium text-primary">
+                            {student.name.charAt(0).toUpperCase()}
+                          </span>
+                        </div>
+                        <div>
+                          <div className="font-medium">{student.name}</div>
+                          <div className="text-sm text-muted-foreground">
+                            {student.phone} • Joined{" "}
+                            {formatDate(student.joiningDate)}
+                          </div>
+                        </div>
                       </div>
-                      <div>
-                        <div className="font-medium">{student.name}</div>
-                        <div className="text-sm text-muted-foreground">
-                          {student.phone} • Joined{" "}
-                          {formatDate(student.joiningDate)}
+                      <div className="text-right">
+                        <Badge
+                          variant={
+                            student.status === "ACTIVE"
+                              ? "default"
+                              : student.status === "INACTIVE"
+                                ? "secondary"
+                                : "secondary"
+                          }
+                        >
+                          {student.status}
+                        </Badge>
+                        <div className="text-sm font-medium mt-1">
+                          {formatCurrency(student.monthlyFee)}
                         </div>
                       </div>
                     </div>
-                    <div className="text-right">
-                      <Badge
-                        variant={
-                          student.status === "ACTIVE"
-                            ? "default"
-                            : student.status === "INACTIVE"
-                            ? "secondary"
-                            : "secondary"
-                        }
-                      >
-                        {student.status}
-                      </Badge>
-                      <div className="text-sm font-medium mt-1">
-                        {formatCurrency(student.monthlyFee)}
-                      </div>
-                    </div>
-                  </div>
-                ))}
+                  ))}
 
                 {filteredStudents.length === 0 && (
                   <div className="text-center py-8">
@@ -702,7 +702,7 @@ export const SlotDetail: React.FC = () => {
                     <SelectTrigger className="w-[140px]">
                       <SelectValue placeholder="Filter status" />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent className="bg-white">
                       <SelectItem value="ALL">All Status</SelectItem>
                       <SelectItem value="ACTIVE">Active</SelectItem>
                       <SelectItem value="INACTIVE">Inactive</SelectItem>
@@ -734,7 +734,7 @@ export const SlotDetail: React.FC = () => {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredStudents.map((student: typeof students[0]) => (
+                    {filteredStudents.map((student: (typeof students)[0]) => (
                       <TableRow key={student._id}>
                         <TableCell className="font-medium">
                           <div className="flex items-center gap-3">
@@ -763,8 +763,8 @@ export const SlotDetail: React.FC = () => {
                               student.status === "ACTIVE"
                                 ? "default"
                                 : student.status === "INACTIVE"
-                                ? "secondary"
-                                : "secondary"
+                                  ? "secondary"
+                                  : "secondary"
                             }
                           >
                             {student.status}
@@ -783,12 +783,13 @@ export const SlotDetail: React.FC = () => {
                         <TableCell>{formatDate(student.joiningDate)}</TableCell>
                         <TableCell className="text-right">
                           <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="icon">
-                                <MoreVertical className="h-4 w-4" />
-                              </Button>
+                            <DropdownMenuTrigger className="inline-flex h-9 w-9 items-center justify-center rounded-md hover:bg-accent hover:text-accent-foreground">
+                              <MoreVertical className="h-4 w-4" />
                             </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
+                            <DropdownMenuContent
+                              align="end"
+                              className="bg-white"
+                            >
                               <DropdownMenuItem>
                                 <Link
                                   to={`/students/${student._id}`}
@@ -892,8 +893,8 @@ export const SlotDetail: React.FC = () => {
                       occupancy.occupancyPercentage >= 90
                         ? "bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800"
                         : occupancy.occupancyPercentage >= 70
-                        ? "bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800"
-                        : "bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800"
+                          ? "bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800"
+                          : "bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800"
                     }`}
                   >
                     <div className="flex items-center gap-3">
@@ -910,30 +911,30 @@ export const SlotDetail: React.FC = () => {
                             occupancy.occupancyPercentage >= 90
                               ? "text-red-700 dark:text-red-300"
                               : occupancy.occupancyPercentage >= 70
-                              ? "text-yellow-700 dark:text-yellow-300"
-                              : "text-green-700 dark:text-green-300"
+                                ? "text-yellow-700 dark:text-yellow-300"
+                                : "text-green-700 dark:text-green-300"
                           }`}
                         >
                           {occupancy.occupancyPercentage >= 90
                             ? "High Occupancy"
                             : occupancy.occupancyPercentage >= 70
-                            ? "Moderate Occupancy"
-                            : "Good Capacity"}
+                              ? "Moderate Occupancy"
+                              : "Good Capacity"}
                         </div>
                         <div
                           className={`text-sm ${
                             occupancy.occupancyPercentage >= 90
                               ? "text-red-600 dark:text-red-400"
                               : occupancy.occupancyPercentage >= 70
-                              ? "text-yellow-600 dark:text-yellow-400"
-                              : "text-green-600 dark:text-green-400"
+                                ? "text-yellow-600 dark:text-yellow-400"
+                                : "text-green-600 dark:text-green-400"
                           }`}
                         >
                           {occupancy.occupancyPercentage >= 90
                             ? "Consider creating a new slot or expanding capacity"
                             : occupancy.occupancyPercentage >= 70
-                            ? "Monitor closely for potential expansion needs"
-                            : "Good capacity for new enrollments"}
+                              ? "Monitor closely for potential expansion needs"
+                              : "Good capacity for new enrollments"}
                         </div>
                       </div>
                     </div>
@@ -958,7 +959,7 @@ export const SlotDetail: React.FC = () => {
                     </span>
                     <span className="font-bold text-green-600">
                       {formatCurrency(
-                        slot.monthlyFee * occupancy.occupiedSeats
+                        slot.monthlyFee * occupancy.occupiedSeats,
                       )}
                     </span>
                   </div>
@@ -986,7 +987,7 @@ export const SlotDetail: React.FC = () => {
                   </div>
                   <div className="text-2xl font-bold">
                     {formatCurrency(
-                      slot.monthlyFee * occupancy.occupiedSeats * 12
+                      slot.monthlyFee * occupancy.occupiedSeats * 12,
                     )}
                   </div>
                   <div className="text-xs text-muted-foreground">

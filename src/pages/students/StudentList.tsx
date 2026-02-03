@@ -427,7 +427,7 @@ export const StudentList: React.FC = () => {
                 <SelectTrigger className="w-full sm:w-[140px]">
                   <SelectValue placeholder="Status" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="bg-white">
                   <SelectItem value="ALL">All Status</SelectItem>
                   <SelectItem value="ACTIVE">Active</SelectItem>
                   <SelectItem value="INACTIVE">Inactive</SelectItem>
@@ -442,7 +442,7 @@ export const StudentList: React.FC = () => {
                 <SelectTrigger className="w-full sm:w-[160px]">
                   <SelectValue placeholder="Slot" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="bg-white">
                   <SelectItem value="ALL">All Slots</SelectItem>
                   {slotsData?.map((slot: Slot) => (
                     <SelectItem key={slot._id} value={slot._id}>
@@ -521,6 +521,7 @@ export const StudentList: React.FC = () => {
                             align="end"
                             side="bottom"
                             sideOffset={8}
+                            className="bg-white"
                           >
                             <DropdownMenuItem
                               onClick={() =>
