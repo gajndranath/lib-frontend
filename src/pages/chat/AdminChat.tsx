@@ -1434,49 +1434,50 @@ export default function AdminChat() {
                   >
                     <Info className="h-5 w-5 text-gray-600" />
                   </SheetTrigger>
-                </SheetTrigger>
-                <SheetContent side="right" className="w-[320px] p-0">
-                  <div className="h-full overflow-y-auto p-4">
-                    <SheetHeader className="mb-4">
-                      <SheetTitle>Session Details</SheetTitle>
-                    </SheetHeader>
-                    <div className="space-y-4 text-sm">
-                      <div>
-                        <p className="text-muted-foreground text-xs">
-                          Slot Information
-                        </p>
-                        <p className="font-medium">
-                          {sessionDetails.slotName || "Not assigned"}
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-muted-foreground text-xs">Timing</p>
-                        <p className="font-medium">
-                          {sessionDetails.timing || "Not set"}
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-muted-foreground text-xs mb-1">
-                          Notes
-                        </p>
-                        <textarea
-                          className="w-full min-h-[200px] rounded-md border p-2 text-sm"
-                          placeholder="Add appointment notes or status..."
-                          value={sessionDetails.notes || ""}
-                          onChange={(e) =>
-                            setSessionDetails((prev) => ({
-                              ...prev,
-                              notes: e.target.value,
-                            }))
-                          }
-                        />
+                  <SheetContent side="right" className="w-[320px] p-0">
+                    <div className="h-full overflow-y-auto p-4">
+                      <SheetHeader className="mb-4">
+                        <SheetTitle>Session Details</SheetTitle>
+                      </SheetHeader>
+                      <div className="space-y-4 text-sm">
+                        <div>
+                          <p className="text-muted-foreground text-xs">
+                            Slot Information
+                          </p>
+                          <p className="font-medium">
+                            {sessionDetails.slotName || "Not assigned"}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-muted-foreground text-xs">
+                            Timing
+                          </p>
+                          <p className="font-medium">
+                            {sessionDetails.timing || "Not set"}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-muted-foreground text-xs mb-1">
+                            Notes
+                          </p>
+                          <textarea
+                            className="w-full min-h-[200px] rounded-md border p-2 text-sm"
+                            placeholder="Add appointment notes or status..."
+                            value={sessionDetails.notes || ""}
+                            onChange={(e) =>
+                              setSessionDetails((prev) => ({
+                                ...prev,
+                                notes: e.target.value,
+                              }))
+                            }
+                          />
+                        </div>
                       </div>
                     </div>
-                  </div>
-                </SheetContent>
-              </Sheet>
+                  </SheetContent>
+                </Sheet>
+              </div>
             )}
-            {/* Removed Phone button duplicate */}
           </div>
 
           <div className="flex-1 bg-gradient-to-b from-white via-blue-50 to-blue-50 overflow-hidden">
@@ -1488,10 +1489,7 @@ export default function AdminChat() {
                 </div>
               </div>
             )}
-            <ScrollArea
-              ref={scrollAreaRef}
-              className="h-full"
-            >
+            <ScrollArea ref={scrollAreaRef} className="h-full">
               <div className="p-4 space-y-4 flex flex-col">
                 {hasMoreMessages && messages.length > 0 && (
                   <div className="flex justify-center pt-2">
@@ -1511,8 +1509,6 @@ export default function AdminChat() {
                         "Load Earlier Messages"
                       )}
                     </Button>
-                  </div>
-                )}
                   </div>
                 )}
 
@@ -1648,7 +1644,9 @@ export default function AdminChat() {
         </section>
 
         <aside className="bg-gradient-to-br from-purple-50 to-indigo-50 border border-purple-200 rounded-xl p-5 hidden lg:flex flex-col">
-          <h3 className="text-sm font-bold text-purple-900 mb-4">Student Details</h3>
+          <h3 className="text-sm font-bold text-purple-900 mb-4">
+            Student Details
+          </h3>
           <div className="space-y-4 text-sm flex-1">
             {selectedContact ? (
               <>
