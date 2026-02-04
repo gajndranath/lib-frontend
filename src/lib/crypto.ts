@@ -38,8 +38,18 @@ export const initCrypto = async () => {
   return Promise.resolve();
 };
 
-export const getOrCreateKeyPair = async (): Promise<KeyPair> => {
-  const stored = localStorage.getItem(STORAGE_KEY);
+export const buildKeyStorageKey = (options?: {
+  userType?: "Admin" | "Student";
+  userId?: string | null;
+}): string => {
+  if (!options?.userType || !options?.userId) return STORAGE_KEY;
+  return `${STORAGE_KEY}:${options.userType}:${options.userId}`;
+};
+
+export const getOrCreateKeyPair = async (
+  storageKey: string = STORAGE_KEY,
+): Promise<KeyPair> => {
+  const stored = localStorage.getItem(storageKey);
   if (stored) {
     return JSON.parse(stored) as KeyPair;
   }
@@ -50,7 +60,7 @@ export const getOrCreateKeyPair = async (): Promise<KeyPair> => {
     publicKey: toBase64(keypair.publicKey),
     privateKey: toBase64(keypair.secretKey),
   };
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(kp));
+  localStorage.setItem(storageKey, JSON.stringify(kp));
   return kp;
 };
 
@@ -94,9 +104,10 @@ const normalizeKey = (
 export const encryptForRecipient = async (
   plaintext: string,
   recipientPublicKey: string | Uint8Array | ArrayBuffer | { data?: number[] },
+  senderKeyPair?: KeyPair,
 ): Promise<string> => {
   // Get sender's keypair for encryption
-  const senderKeyPair = await getOrCreateKeyPair();
+  const senderKeys = senderKeyPair ?? (await getOrCreateKeyPair());
 
   // Convert inputs
   const message = utf8ToBytes(
@@ -109,7 +120,7 @@ export const encryptForRecipient = async (
     "Recipient public key",
   );
   const senderSecretKey = normalizeKey(
-    senderKeyPair.privateKey,
+    senderKeys.privateKey,
     BOX_SECRET_KEY_LENGTH,
     "Sender private key",
   );

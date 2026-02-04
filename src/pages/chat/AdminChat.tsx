@@ -7,6 +7,7 @@ import { useAuth } from "@/hooks/useAuth";
 import {
   initCrypto,
   getOrCreateKeyPair,
+  buildKeyStorageKey,
   encryptForRecipient,
   decryptForSelf,
 } from "@/lib/crypto";
@@ -97,6 +98,10 @@ export default function AdminChat() {
   const scrollAreaRef = useRef<HTMLDivElement | null>(null);
   const pendingStatusRef = useRef<Map<string, "SENT" | "DELIVERED" | "READ">>(
     new Map(),
+  );
+  const keyStorageKey = useMemo(
+    () => buildKeyStorageKey({ userType: "Admin", userId: admin?._id || null }),
+    [admin?._id],
   );
 
   type ChatSocketPayload = ChatMessage & {
@@ -204,14 +209,15 @@ export default function AdminChat() {
   }, [search, contacts, chatList]);
 
   useEffect(() => {
+    if (!admin?._id) return;
     const setup = async () => {
       await initCrypto();
-      const keypair = await getOrCreateKeyPair();
+      const keypair = await getOrCreateKeyPair(keyStorageKey);
       await chatApi.setPublicKey(keypair.publicKey);
       setKeyReady(true);
     };
     setup();
-  }, []);
+  }, [admin?._id, keyStorageKey]);
 
   // Online/offline event listeners
   useEffect(() => {
@@ -253,7 +259,7 @@ export default function AdminChat() {
         : `Call ended • ${duration}`;
 
       try {
-        const keypair = await getOrCreateKeyPair();
+        const keypair = await getOrCreateKeyPair(keyStorageKey);
         const publicKeyRes = await chatApi.getPublicKey(
           recipient.type,
           recipient.id,
@@ -265,10 +271,12 @@ export default function AdminChat() {
         const encryptedForRecipient = await encryptForRecipient(
           callText,
           recipientPublicKey,
+          keypair,
         );
         const encryptedForSender = await encryptForRecipient(
           callText,
           keypair.publicKey,
+          keypair,
         );
 
         const tempMessageId = `call_${Date.now()}`;
@@ -552,7 +560,7 @@ export default function AdminChat() {
       }
 
       try {
-        const keypair = await getOrCreateKeyPair();
+        const keypair = await getOrCreateKeyPair(keyStorageKey);
 
         let senderPublicKey = p.senderPublicKey;
         if (!senderPublicKey) {
@@ -650,7 +658,7 @@ export default function AdminChat() {
       if (!p?.encryptedForSender?.ciphertext) return;
 
       try {
-        const keypair = await getOrCreateKeyPair();
+        const keypair = await getOrCreateKeyPair(keyStorageKey);
 
         let senderPublicKey = p.senderPublicKey;
         if (!senderPublicKey) {
@@ -850,7 +858,7 @@ export default function AdminChat() {
 
   const loadMessagesChunk = async (convoId: string, before?: string) => {
     try {
-      const keypair = await getOrCreateKeyPair();
+      const keypair = await getOrCreateKeyPair(keyStorageKey);
       const messagesRes = await chatApi.listMessages(convoId, {
         limit: 50,
         before,
@@ -1007,7 +1015,7 @@ export default function AdminChat() {
   const handleSend = async () => {
     if (!selectedContact || !conversationId || !message.trim()) return;
     try {
-      const keypair = await getOrCreateKeyPair();
+      const keypair = await getOrCreateKeyPair(keyStorageKey);
       const messageText = message.trim();
       const tempMessageId = `temp_${Date.now()}`;
 
@@ -1044,10 +1052,12 @@ export default function AdminChat() {
       const encryptedForRecipient = await encryptForRecipient(
         messageText,
         recipientPublicKey,
+        keypair,
       );
       const encryptedForSender = await encryptForRecipient(
         messageText,
         keypair.publicKey,
+        keypair,
       );
 
       socketService.emit("chat:send", {

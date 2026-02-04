@@ -6,6 +6,7 @@ import { socketService } from "@/api/socket.service";
 import {
   initCrypto,
   getOrCreateKeyPair,
+  buildKeyStorageKey,
   encryptForRecipient,
   decryptForSelf,
 } from "@/lib/crypto";
@@ -115,6 +116,14 @@ export default function StudentChat() {
   const scrollAreaRef = useRef<HTMLDivElement | null>(null);
   const pendingStatusRef = useRef<Map<string, "SENT" | "DELIVERED" | "READ">>(
     new Map(),
+  );
+  const keyStorageKey = useMemo(
+    () =>
+      buildKeyStorageKey({
+        userType: "Student",
+        userId: student?._id || null,
+      }),
+    [student?._id],
   );
 
   const { data: studentsData } = useQuery({
@@ -346,13 +355,14 @@ export default function StudentChat() {
   }, [adminsError]);
 
   useEffect(() => {
+    if (!student?._id) return;
     const setup = async () => {
       await initCrypto();
-      const keypair = await getOrCreateKeyPair();
+      const keypair = await getOrCreateKeyPair(keyStorageKey);
       await studentChatApi.setPublicKey(keypair.publicKey);
     };
     setup();
-  }, []);
+  }, [student?._id, keyStorageKey]);
 
   // Online/offline event listeners
   useEffect(() => {
@@ -394,7 +404,7 @@ export default function StudentChat() {
         : `Call ended • ${duration}`;
 
       try {
-        const keypair = await getOrCreateKeyPair();
+        const keypair = await getOrCreateKeyPair(keyStorageKey);
         const publicKeyRes = await studentChatApi.getPublicKey(
           recipient.type,
           recipient.id,
@@ -406,10 +416,12 @@ export default function StudentChat() {
         const encryptedForRecipient = await encryptForRecipient(
           callText,
           recipientPublicKey,
+          keypair,
         );
         const encryptedForSender = await encryptForRecipient(
           callText,
           keypair.publicKey,
+          keypair,
         );
 
         const tempMessageId = `call_${Date.now()}`;
@@ -694,7 +706,7 @@ export default function StudentChat() {
       }
 
       try {
-        const keypair = await getOrCreateKeyPair();
+        const keypair = await getOrCreateKeyPair(keyStorageKey);
 
         let senderPublicKey = p.senderPublicKey;
         if (!senderPublicKey) {
@@ -782,7 +794,7 @@ export default function StudentChat() {
       if (conversationId && p.conversationId !== conversationId) return;
 
       try {
-        const keypair = await getOrCreateKeyPair();
+        const keypair = await getOrCreateKeyPair(keyStorageKey);
 
         let senderPublicKey = p.senderPublicKey;
         if (!senderPublicKey) {
@@ -1052,7 +1064,7 @@ export default function StudentChat() {
 
   const loadMessagesChunk = async (convoId: string, before?: string) => {
     try {
-      const keypair = await getOrCreateKeyPair();
+      const keypair = await getOrCreateKeyPair(keyStorageKey);
       const messagesRes = await studentChatApi.listMessages(convoId, {
         limit: 50,
         before,
@@ -1255,7 +1267,7 @@ export default function StudentChat() {
     setMessage("");
 
     try {
-      const keypair = await getOrCreateKeyPair();
+      const keypair = await getOrCreateKeyPair(keyStorageKey);
 
       // Always fetch fresh recipient key to avoid stale cache
       const publicKeyRes = await studentChatApi.getPublicKey(
@@ -1288,10 +1300,12 @@ export default function StudentChat() {
       const encryptedForRecipient = await encryptForRecipient(
         messageText,
         recipientPublicKey,
+        keypair,
       );
       const encryptedForSender = await encryptForRecipient(
         messageText,
         keypair.publicKey,
+        keypair,
       );
 
       console.log(`🔐 Encrypted message for Admin (${selectedContact._id}):`, {

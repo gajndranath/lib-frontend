@@ -1,13 +1,15 @@
 import { useEffect, useCallback } from "react";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useLocation } from "react-router-dom";
 import { toast } from "sonner";
 import { studentAuthApi } from "@/api/studentAuth.api";
 import { useStudentAuthStore } from "@/store/studentAuth.store";
+import { socketService } from "@/api/socket.service";
 
 export const useStudentAuth = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const queryClient = useQueryClient();
 
   const { student, accessToken, setAuth, clearAuth, updateStudent } =
     useStudentAuthStore();
@@ -51,11 +53,48 @@ export const useStudentAuth = () => {
   });
 
   const logout = useCallback(() => {
+    console.log("Student logging out...");
+
+    // Clear local storage - authentication
     localStorage.removeItem("studentAccessToken");
     localStorage.removeItem("student");
+
+    // Clear E2E encryption keypairs (CRITICAL: prevents old keypair reuse)
+    if (student?._id) {
+      localStorage.removeItem(`e2e_keypair_v1:Student:${student._id}`);
+    }
+    // Clear any leftover generic keypair keys
+    const keys = Object.keys(localStorage);
+    keys.forEach((key) => {
+      if (key.includes("e2e_keypair")) {
+        localStorage.removeItem(key);
+      }
+    });
+
+    // Clear session storage
+    sessionStorage.clear();
+
+    // Clear auth store
     clearAuth();
+
+    // Disconnect socket
+    socketService.disconnect();
+
+    // Clear query cache
+    queryClient.clear();
+
+    // Clear Service Worker cache if available
+    if ("caches" in window) {
+      caches.keys().then((cacheNames) => {
+        cacheNames.forEach((cacheName) => {
+          caches.delete(cacheName).catch(() => {});
+        });
+      });
+    }
+
     navigate("/student/login", { replace: true });
-  }, [clearAuth, navigate]);
+    toast.success("Logged out successfully");
+  }, [clearAuth, navigate, queryClient, student?._id]);
 
   return {
     student,

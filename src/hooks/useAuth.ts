@@ -85,10 +85,25 @@ export const useAuth = () => {
   const logout = useCallback(() => {
     console.log("Logging out...");
 
-    // Clear local storage
+    // Clear local storage - authentication
     localStorage.removeItem("accessToken");
     localStorage.removeItem("admin");
     localStorage.removeItem("rememberedEmail");
+
+    // Clear E2E encryption keypairs (CRITICAL: prevents old keypair reuse)
+    if (admin?._id) {
+      localStorage.removeItem(`e2e_keypair_v1:Admin:${admin._id}`);
+    }
+    // Clear any leftover generic keypair keys
+    const keys = Object.keys(localStorage);
+    keys.forEach((key) => {
+      if (key.includes("e2e_keypair")) {
+        localStorage.removeItem(key);
+      }
+    });
+
+    // Clear session storage
+    sessionStorage.clear();
 
     // Clear auth store
     clearAuth();
@@ -99,11 +114,20 @@ export const useAuth = () => {
     // Clear query cache
     queryClient.clear();
 
+    // Clear Service Worker cache if available
+    if ("caches" in window) {
+      caches.keys().then((cacheNames) => {
+        cacheNames.forEach((cacheName) => {
+          caches.delete(cacheName).catch(() => {});
+        });
+      });
+    }
+
     // Redirect to login
     navigate("/login", { replace: true });
 
     toast.success("Logged out successfully");
-  }, [clearAuth, navigate, queryClient]);
+  }, [clearAuth, navigate, queryClient, admin?._id]);
 
   // Check if user has permission
   const hasPermission = useCallback(
