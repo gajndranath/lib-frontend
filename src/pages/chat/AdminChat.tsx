@@ -831,6 +831,15 @@ export default function AdminChat() {
     }, 0);
   }, [messages]);
 
+  // ✅ Notify backend when leaving a conversation
+  useEffect(() => {
+    return () => {
+      if (conversationId) {
+        socketService.emit("chat:clear-active-conversation");
+      }
+    };
+  }, [conversationId]);
+
   const handleSelectContact = async (contact: Contact) => {
     setSelectedContact(contact);
     setMobileView("chat");
@@ -842,6 +851,12 @@ export default function AdminChat() {
     const convo = result.data?.data;
     if (convo?._id) {
       setConversationId(convo._id);
+
+      // ✅ Notify backend that user is viewing this conversation
+      socketService.emit("chat:set-active-conversation", {
+        conversationId: convo._id,
+      });
+
       // Load initial messages (first 50)
       await loadMessagesChunk(convo._id);
 
