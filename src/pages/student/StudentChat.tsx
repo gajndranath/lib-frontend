@@ -40,7 +40,16 @@ import {
 } from "@/components/ui/sheet";
 import { LetterAvatar } from "@/components/chat/LetterAvatar";
 import { toast } from "sonner";
-import { Phone, Search, Send, Info, Loader2 } from "lucide-react";
+import {
+  Phone,
+  Search,
+  Send,
+  Info,
+  Loader2,
+  Edit2,
+  Trash2,
+  Share2,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { ChatMessage } from "@/types";
 import type {
@@ -105,6 +114,13 @@ export default function StudentChat() {
   const [remoteMuted, setRemoteMuted] = useState(false);
   const [incomingCallData, setIncomingCallData] =
     useState<CallOfferPayload | null>(null);
+  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+  const [editingText, setEditingText] = useState("");
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [forwardingMessageId, setForwardingMessageId] = useState<string | null>(
+    null,
+  );
+  const [forwardText, setForwardText] = useState("");
   const typingTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   const peerRef = useRef<RTCPeerConnection | null>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
@@ -1029,6 +1045,26 @@ export default function StudentChat() {
     }, 0);
   }, [messages]);
 
+  // ✅ Load more messages when scrolling to top
+  useEffect(() => {
+    if (!scrollAreaRef.current) return;
+    const scrollContainer = scrollAreaRef.current.querySelector(
+      "[data-radix-scroll-area-viewport]",
+    );
+    if (!scrollContainer) return;
+
+    const handleScroll = async () => {
+      // If scrolled to top within 100px and has more messages
+      if (scrollContainer.scrollTop < 100 && !loadingMore && hasMoreMessages) {
+        console.log("📥 Load more trigger: scroll near top");
+        await handleLoadMoreMessages();
+      }
+    };
+
+    scrollContainer.addEventListener("scroll", handleScroll);
+    return () => scrollContainer.removeEventListener("scroll", handleScroll);
+  }, [conversationId, loadingMore, hasMoreMessages, handleLoadMoreMessages]);
+
   // ✅ Notify backend when leaving a conversation
   useEffect(() => {
     return () => {
@@ -1079,9 +1115,13 @@ export default function StudentChat() {
 
   const loadMessagesChunk = async (convoId: string, before?: string) => {
     try {
+      console.log(
+        `📥 Loading messages: ${before ? "older" : "initial"} ${before || ""}`,
+      );
+      setLoadingMore(true);
       const keypair = await getOrCreateKeyPair(keyStorageKey);
       const messagesRes = await studentChatApi.listMessages(convoId, {
-        limit: 50,
+        limit: 30, // ✅ Reduced from 50 to 30 for faster loading
         before,
       });
 
@@ -1089,77 +1129,107 @@ export default function StudentChat() {
         []) as unknown as ChatMessage[];
 
       if (messagesList.length > 0) {
-        const firstMsg = messagesList[0];
         console.log(
-          `📥 Student received ${messagesList.length} messages. First message:`,
-          {
-            senderId: firstMsg.senderId,
-            senderType: firstMsg.senderType,
-            encryptedForRecipientLength:
-              firstMsg.encryptedForRecipient?.ciphertext?.length,
-            encryptedForRecipientCiphertext:
-              firstMsg.encryptedForRecipient?.ciphertext?.slice(0, 50) + "...",
-            encryptedForSenderLength:
-              firstMsg.encryptedForSender?.ciphertext?.length,
-          },
+          `📥 Student received ${messagesList.length} messages. Decrypting...`,
         );
       }
 
-      if (messagesList.length < 50) {
+      // ✅ Early detection: if less than 30, no more messages
+      if (messagesList.length < 30) {
         setHasMoreMessages(false);
       }
 
-      const decrypted = await Promise.all(
-        messagesList.map(async (m) => {
-          try {
-            // Check if this message is from the current student
-            const isOwnMessage =
-              String(m.senderId) === String(student?._id || "");
+      // ✅ Decrypt in parallel batches for speed (5 at a time)
+      const BATCH_SIZE = 5;
+      const decrypted: Array<UiMessage | null> = [];
 
-            // Use encryptedForSender for own messages, encryptedForRecipient for others
-            const payload = isOwnMessage
-              ? m.encryptedForSender
-              : m.encryptedForRecipient;
+      for (let i = 0; i < messagesList.length; i += BATCH_SIZE) {
+        const batch = messagesList.slice(i, i + BATCH_SIZE);
+        const batchResults = await Promise.all(
+          batch.map(async (m) => {
+            try {
+              // Check if this message is from the current student
+              const isOwnMessage =
+                String(m.senderId) === String(student?._id || "");
 
-            if (!payload?.ciphertext) {
-              console.error("No encrypted payload for message", m._id);
-              return null;
-            }
+              // Use encryptedForSender for own messages, encryptedForRecipient for others
+              const payload = isOwnMessage
+                ? m.encryptedForSender
+                : m.encryptedForRecipient;
 
-            let senderPublicKey = m.senderPublicKey;
-            if (!senderPublicKey) {
-              if (isOwnMessage) {
-                senderPublicKey = keypair.publicKey;
-              } else {
-                const pubKeyResponse = await studentChatApi.getPublicKey(
-                  m.senderType,
-                  m.senderId,
-                );
+              if (!payload?.ciphertext) {
+                console.error("No encrypted payload for message", m._id);
+                return null;
+              }
 
-                if (pubKeyResponse.error) {
-                  console.error(
-                    "Failed to fetch sender public key for message",
-                    m._id,
+              let senderPublicKey = m.senderPublicKey;
+              if (!senderPublicKey) {
+                if (isOwnMessage) {
+                  senderPublicKey = keypair.publicKey;
+                } else {
+                  const pubKeyResponse = await studentChatApi.getPublicKey(
+                    m.senderType,
+                    m.senderId,
                   );
-                  return null;
-                }
 
-                senderPublicKey = pubKeyResponse.data?.data?.publicKey;
-                if (!senderPublicKey) {
-                  console.error("No public key in response for message", m._id);
-                  return null;
+                  if (pubKeyResponse.error) {
+                    console.error(
+                      "Failed to fetch sender public key for message",
+                      m._id,
+                    );
+                    return null;
+                  }
+
+                  senderPublicKey = pubKeyResponse.data?.data?.publicKey;
+                  if (!senderPublicKey) {
+                    console.error(
+                      "No public key in response for message",
+                      m._id,
+                    );
+                    return null;
+                  }
                 }
               }
-            }
 
-            let text: string;
-            try {
-              text = await decryptForSelf(
-                payload.ciphertext,
-                keypair,
-                senderPublicKey,
-              );
-            } catch (_decryptError) {
+              let text: string;
+              try {
+                text = await decryptForSelf(
+                  payload.ciphertext,
+                  keypair,
+                  senderPublicKey,
+                );
+              } catch (_decryptError) {
+                return {
+                  id: m._id,
+                  text: "Unable to decrypt message",
+                  senderType: m.senderType,
+                  status: m.status,
+                  createdAt: m.createdAt
+                    ? new Date(m.createdAt).toISOString()
+                    : undefined,
+                  isOwnMessage,
+                  contentType: m.contentType ?? "TEXT",
+                };
+              }
+
+              const pendingStatus = pendingStatusRef.current.get(m._id);
+              if (pendingStatus) {
+                pendingStatusRef.current.delete(m._id);
+              }
+
+              return {
+                id: m._id,
+                text,
+                senderType: m.senderType,
+                status: pendingStatus || m.status,
+                createdAt: m.createdAt
+                  ? new Date(m.createdAt).toISOString()
+                  : undefined,
+                isOwnMessage,
+                contentType: m.contentType ?? "TEXT",
+              };
+            } catch (error) {
+              console.error("Error decrypting message:", error);
               return {
                 id: m._id,
                 text: "Unable to decrypt message",
@@ -1168,43 +1238,14 @@ export default function StudentChat() {
                 createdAt: m.createdAt
                   ? new Date(m.createdAt).toISOString()
                   : undefined,
-                isOwnMessage,
+                isOwnMessage: String(m.senderId) === String(student?._id || ""),
                 contentType: m.contentType ?? "TEXT",
               };
             }
-
-            const pendingStatus = pendingStatusRef.current.get(m._id);
-            if (pendingStatus) {
-              pendingStatusRef.current.delete(m._id);
-            }
-
-            return {
-              id: m._id,
-              text,
-              senderType: m.senderType,
-              status: pendingStatus || m.status,
-              createdAt: m.createdAt
-                ? new Date(m.createdAt).toISOString()
-                : undefined,
-              isOwnMessage,
-              contentType: m.contentType ?? "TEXT",
-            };
-          } catch (error) {
-            console.error("Error decrypting message:", error);
-            return {
-              id: m._id,
-              text: "Unable to decrypt message",
-              senderType: m.senderType,
-              status: m.status,
-              createdAt: m.createdAt
-                ? new Date(m.createdAt).toISOString()
-                : undefined,
-              isOwnMessage: String(m.senderId) === String(student?._id || ""),
-              contentType: m.contentType ?? "TEXT",
-            };
-          }
-        }),
-      );
+          }),
+        );
+        decrypted.push(...batchResults);
+      }
 
       const validMessages = decrypted.filter((m) => m !== null).reverse();
 
@@ -1237,6 +1278,8 @@ export default function StudentChat() {
     } catch (error) {
       console.error("Error loading messages:", error);
       toast.error("Failed to load messages");
+    } finally {
+      setLoadingMore(false);
     }
   };
 
@@ -1250,6 +1293,97 @@ export default function StudentChat() {
       }
     } finally {
       setLoadingMore(false);
+    }
+  };
+
+  // ✅ Handle message edit
+  const handleEditMessage = async () => {
+    if (!editingMessageId || !editingText.trim()) return;
+
+    try {
+      const keypair = await getOrCreateKeyPair(keyStorageKey);
+      const encryptedPayload = await encryptForRecipient(
+        editingText.trim(),
+        selectedContact?._id || "",
+        "Admin",
+      );
+
+      await chatApi.editMessage(editingMessageId, {
+        text: editingText.trim(),
+        encryptedPayload,
+      });
+
+      // Update local state
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === editingMessageId ? { ...m, text: editingText.trim() } : m,
+        ),
+      );
+
+      socketService.emit("chat:edited", {
+        messageId: editingMessageId,
+        text: editingText.trim(),
+        editedAt: new Date().toISOString(),
+      });
+
+      setEditingMessageId(null);
+      setEditingText("");
+      toast.success("Message edited");
+    } catch (error) {
+      console.error("Edit message error:", error);
+      toast.error("Failed to edit message");
+    }
+  };
+
+  // ✅ Handle message delete
+  const handleDeleteMessage = async (messageId: string) => {
+    try {
+      await chatApi.deleteMessage(messageId);
+
+      // Update local state
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === messageId ? { ...m, text: "This message was deleted" } : m,
+        ),
+      );
+
+      socketService.emit("chat:deleted", { messageId });
+      setDeleteConfirmId(null);
+      toast.success("Message deleted");
+    } catch (error) {
+      console.error("Delete message error:", error);
+      toast.error("Failed to delete message");
+    }
+  };
+
+  // ✅ Handle message forward
+  const handleForwardMessage = async () => {
+    if (!forwardingMessageId || !forwardText.trim()) return;
+
+    try {
+      const keypair = await getOrCreateKeyPair(keyStorageKey);
+      const encryptedPayload = await encryptForRecipient(
+        forwardText.trim(),
+        selectedContact?._id || "",
+        "Admin",
+      );
+
+      await chatApi.forwardMessage(forwardingMessageId, {
+        text: forwardText.trim(),
+        encryptedPayload,
+      });
+
+      socketService.emit("chat:forwarded", {
+        messageId: forwardingMessageId,
+        forwardedText: forwardText.trim(),
+      });
+
+      setForwardingMessageId(null);
+      setForwardText("");
+      toast.success("Message forwarded");
+    } catch (error) {
+      console.error("Forward message error:", error);
+      toast.error("Failed to forward message");
     }
   };
 
@@ -2030,7 +2164,7 @@ export default function StudentChat() {
                         <div
                           className={`flex ${m.isOwnMessage ? "justify-end" : "justify-start"}`}
                         >
-                          <div className="flex gap-2 max-w-[85%]">
+                          <div className="flex gap-2 max-w-[85%] group">
                             {!m.isOwnMessage && isFirstFromSender && (
                               <LetterAvatar
                                 name={selectedContact?.name || "Student"}
@@ -2043,21 +2177,62 @@ export default function StudentChat() {
                             )}
 
                             <div className="flex flex-col gap-1">
-                              <div
-                                className={`rounded-2xl px-4 py-2.5 text-sm leading-relaxed break-words ${
-                                  isCall
-                                    ? "bg-emerald-50 text-emerald-800 border border-emerald-200 shadow-sm"
-                                    : m.isOwnMessage
-                                      ? "bg-blue-500 text-white rounded-br-none shadow-md"
-                                      : "bg-white text-gray-900 border border-gray-200 rounded-bl-none shadow-sm"
-                                }`}
-                              >
-                                <span className="inline-flex items-center gap-2">
-                                  {isCall && (
-                                    <Phone className="h-4 w-4 text-emerald-600" />
-                                  )}
-                                  <span>{m.text}</span>
-                                </span>
+                              <div className="relative">
+                                <div
+                                  className={`rounded-2xl px-4 py-2.5 text-sm leading-relaxed break-words ${
+                                    isCall
+                                      ? "bg-emerald-50 text-emerald-800 border border-emerald-200 shadow-sm"
+                                      : m.isOwnMessage
+                                        ? "bg-blue-500 text-white rounded-br-none shadow-md"
+                                        : "bg-white text-gray-900 border border-gray-200 rounded-bl-none shadow-sm"
+                                  }`}
+                                >
+                                  <span className="inline-flex items-center gap-2">
+                                    {isCall && (
+                                      <Phone className="h-4 w-4 text-emerald-600" />
+                                    )}
+                                    <span>{m.text}</span>
+                                  </span>
+                                </div>
+
+                                {/* ✅ Action buttons (show on hover for own messages) */}
+                                {m.isOwnMessage && !isCall && (
+                                  <div className="hidden group-hover:flex gap-1 mt-1">
+                                    <Button
+                                      size="sm"
+                                      variant="ghost"
+                                      className="h-7 w-7 p-0"
+                                      onClick={() => {
+                                        setEditingMessageId(m.id);
+                                        setEditingText(m.text);
+                                      }}
+                                      title="Edit message"
+                                    >
+                                      <Edit2 className="h-3.5 w-3.5 text-amber-600" />
+                                    </Button>
+                                    <Button
+                                      size="sm"
+                                      variant="ghost"
+                                      className="h-7 w-7 p-0"
+                                      onClick={() => {
+                                        setForwardingMessageId(m.id);
+                                        setForwardText(m.text);
+                                      }}
+                                      title="Forward message"
+                                    >
+                                      <Share2 className="h-3.5 w-3.5 text-blue-600" />
+                                    </Button>
+                                    <Button
+                                      size="sm"
+                                      variant="ghost"
+                                      className="h-7 w-7 p-0"
+                                      onClick={() => setDeleteConfirmId(m.id)}
+                                      title="Delete message"
+                                    >
+                                      <Trash2 className="h-3.5 w-3.5 text-red-600" />
+                                    </Button>
+                                  </div>
+                                )}
                               </div>
                               {m.isOwnMessage && !isCall && (
                                 <div className="flex items-center justify-end gap-0.5 px-1">
@@ -2281,6 +2456,96 @@ export default function StudentChat() {
           </aside>
         </div>
       </div>
-    </>
-  );
-}
+
+      {/* ✅ Edit Message Modal */}
+      {editingMessageId && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <h2 className="text-lg font-bold mb-4">Edit Message</h2>
+            <textarea
+              value={editingText}
+              onChange={(e) => setEditingText(e.target.value)}
+              className="w-full border rounded-lg p-3 mb-4 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              rows={4}
+              placeholder="Edit your message..."
+            />
+            <div className="flex gap-2 justify-end">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setEditingMessageId(null);
+                  setEditingText("");
+                }}
+              >
+                Cancel
+              </Button>
+              <Button
+                className="bg-blue-600 hover:bg-blue-700"
+                onClick={handleEditMessage}
+              >
+                Save Changes
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ✅ Delete Confirmation Modal */}
+      {deleteConfirmId && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <h2 className="text-lg font-bold mb-2">Delete Message</h2>
+            <p className="text-gray-600 mb-6">
+              Are you sure you want to delete this message? This action cannot
+              be undone.
+            </p>
+            <div className="flex gap-2 justify-end">
+              <Button
+                variant="outline"
+                onClick={() => setDeleteConfirmId(null)}
+              >
+                Cancel
+              </Button>
+              <Button
+                className="bg-red-600 hover:bg-red-700"
+                onClick={() => handleDeleteMessage(deleteConfirmId)}
+              >
+                Delete
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ✅ Forward Message Modal */}
+      {forwardingMessageId && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <h2 className="text-lg font-bold mb-4">Forward Message</h2>
+            <textarea
+              value={forwardText}
+              onChange={(e) => setForwardText(e.target.value)}
+              className="w-full border rounded-lg p-3 mb-4 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              rows={4}
+              placeholder="Message to forward..."
+            />
+            <div className="flex gap-2 justify-end">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setForwardingMessageId(null);
+                  setForwardText("");
+                }}
+              >
+                Cancel
+              </Button>
+              <Button
+                className="bg-green-600 hover:bg-green-700"
+                onClick={handleForwardMessage}
+              >
+                Forward
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}

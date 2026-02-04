@@ -85,7 +85,8 @@ export default function AdminAnnouncements() {
       return;
     }
 
-    // Announcements are now plain text, no encryption needed
+    // For now, announcements are plain text - recipientCiphertexts can be empty
+    // In future, can add encryption support
     await announcementsApi.createAnnouncement({
       targetScope: scope,
       slotId: scope === "SLOT" ? slotId : undefined,
@@ -93,11 +94,13 @@ export default function AdminAnnouncements() {
         scope === "SPECIFIC_STUDENTS" ? selectedStudents : undefined,
       title,
       body,
+      recipientCiphertexts: [], // Empty for now, can add encryption later
     });
 
     setTitle("");
     setBody("");
     setSlotId("");
+    setSelectedStudents([]);
     toast.success("Announcement sent");
   };
 

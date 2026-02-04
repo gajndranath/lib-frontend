@@ -33,7 +33,9 @@ export const announcementsApi = {
     targetScope: "ALL_STUDENTS" | "SLOT" | "SPECIFIC_STUDENTS";
     slotId?: string;
     recipientIds?: string[];
-    recipientCiphertexts: RecipientCiphertext[];
+    title: string;
+    body: string;
+    recipientCiphertexts?: RecipientCiphertext[];
   }) =>
     apiCall<ApiResponse<Announcement>>(
       axiosInstance.post("/announcements", payload),

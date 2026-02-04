@@ -92,4 +92,25 @@ export const chatApi = {
     apiCall<ApiResponse<ChatMessage>>(
       axiosInstance.post("/chat/messages", payload),
     ),
+
+  editMessage: (
+    messageId: string,
+    payload: { text: string; encryptedPayload: EncryptedPayload },
+  ) =>
+    apiCall<ApiResponse<ChatMessage>>(
+      axiosInstance.put(`/chat/messages/${messageId}`, payload),
+    ),
+
+  deleteMessage: (messageId: string) =>
+    apiCall<ApiResponse<null>>(
+      axiosInstance.delete(`/chat/messages/${messageId}`),
+    ),
+
+  forwardMessage: (
+    messageId: string,
+    payload: { text: string; encryptedPayload: EncryptedPayload },
+  ) =>
+    apiCall<ApiResponse<ChatMessage>>(
+      axiosInstance.post(`/chat/messages/${messageId}/forward`, payload),
+    ),
 };
