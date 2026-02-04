@@ -98,6 +98,9 @@ export default function AdminChat() {
   const [remoteMuted, setRemoteMuted] = useState(false);
   const [incomingCallData, setIncomingCallData] =
     useState<CallOfferPayload | null>(null);
+
+  // ✅ Message cache to avoid reloading on re-entry
+  const messageCache = useRef<Map<string, UiMessage[]>>(new Map());
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [editingText, setEditingText] = useState("");
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
@@ -639,33 +642,42 @@ export default function AdminChat() {
           pendingStatusRef.current.delete(messageId);
         }
 
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: messageId,
-            text: plaintext,
-            senderType: p.senderType,
-            status: pendingStatus || p.status,
-            createdAt: p.createdAt,
-            isOwnMessage: String(p.senderId) === String(admin?._id || ""),
-            contentType: p.contentType ?? "TEXT",
-          },
-        ]);
+        setMessages((prev) => {
+          const updated = [
+            ...prev,
+            {
+              id: messageId,
+              text: plaintext,
+              senderType: p.senderType,
+              status: pendingStatus || p.status,
+              createdAt: p.createdAt,
+              isOwnMessage: String(p.senderId) === String(admin?._id || ""),
+              contentType: p.contentType ?? "TEXT",
+            },
+          ];
 
-        if (p._id) {
-          socketService.emit("chat:delivered", { messageId: p._id });
-          // Mark as read immediately if viewing this conversation with the student
-          if (
-            selectedContact &&
-            String(p.senderId) === String(selectedContact._id || "")
-          ) {
-            socketService.emit("chat:read", { messageId: p._id });
-            setUnreadCounts((prev) => ({
-              ...prev,
-              [selectedContact._id]: 0,
-            }));
+          if (p._id) {
+            socketService.emit("chat:delivered", { messageId: p._id });
+            // Mark as read immediately if viewing this conversation with the student
+            if (
+              selectedContact &&
+              String(p.senderId) === String(selectedContact._id || "")
+            ) {
+              socketService.emit("chat:read", { messageId: p._id });
+              setUnreadCounts((prev) => ({
+                ...prev,
+                [selectedContact._id]: 0,
+              }));
+            }
+
+            // ✅ Update cache with new message
+            if (conversationId) {
+              messageCache.current.set(conversationId, updated);
+            }
           }
-        }
+
+          return updated;
+        });
       } catch (error) {
         console.error("Error processing message:", error);
       }
@@ -881,8 +893,6 @@ export default function AdminChat() {
   const handleSelectContact = async (contact: Contact) => {
     setSelectedContact(contact);
     setMobileView("chat");
-    setMessages([]);
-    setHasMoreMessages(true);
     setUnreadCounts((prev) => ({ ...prev, [contact._id]: 0 }));
 
     const result = await chatApi.createConversation(contact._id, "Student");
@@ -895,8 +905,22 @@ export default function AdminChat() {
         conversationId: convo._id,
       });
 
-      // Load initial messages (first 50)
-      await loadMessagesChunk(convo._id);
+      // ✅ Check if we have cached messages for this conversation
+      const cachedMessages = messageCache.current.get(convo._id);
+      if (cachedMessages && cachedMessages.length > 0) {
+        // Show cached messages immediately
+        console.log(
+          `📦 Using cached ${cachedMessages.length} messages for instant display`,
+        );
+        setMessages(cachedMessages);
+        setHasMoreMessages(cachedMessages.length >= 30);
+      } else {
+        // No cache, show loading
+        setMessages([]);
+        setHasMoreMessages(true);
+        // Load initial messages (first 30)
+        await loadMessagesChunk(convo._id);
+      }
 
       const details = await studentApi.getStudentDetails(contact._id);
       const slot = details.data?.data?.slot;
@@ -1028,10 +1052,24 @@ export default function AdminChat() {
 
       if (before) {
         // Prepend older messages
-        setMessages((prev) => [...validMessages, ...prev]);
+        setMessages((prev) => {
+          const updated = [...validMessages, ...prev];
+          // Update cache
+          if (conversationId) {
+            messageCache.current.set(conversationId, updated);
+          }
+          return updated;
+        });
       } else {
         // Initial load
         setMessages(validMessages);
+        // ✅ Cache these messages for instant re-entry
+        if (conversationId) {
+          messageCache.current.set(conversationId, validMessages);
+          console.log(
+            `💾 Cached ${validMessages.length} messages for ${conversationId}`,
+          );
+        }
 
         if (selectedContact) {
           setUnreadCounts((prev) => ({
@@ -1699,89 +1737,89 @@ export default function AdminChat() {
                                     ? "bg-emerald-50 text-emerald-800 border border-emerald-200 shadow-sm"
                                     : m.senderType === "Admin"
                                       ? "bg-blue-500 text-white rounded-br-none shadow-md"
-                                    : "bg-white text-gray-900 border border-gray-200 rounded-bl-none shadow-sm"
-                              }`}
-                            >
-                              <span className="inline-flex items-center gap-2">
-                                {isCall && (
-                                  <Phone className="h-4 w-4 text-emerald-600" />
-                                )}
-                                <span>{m.text}</span>
-                              </span>
-                            </div>
-
-                            {/* ✅ Action buttons (show on hover for own messages) */}
-                            {m.senderType === "Admin" && !isCall && (
-                              <div className="hidden group-hover:flex gap-1 mt-1">
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  className="h-7 w-7 p-0"
-                                  onClick={() => {
-                                    setEditingMessageId(m.id);
-                                    setEditingText(m.text);
-                                  }}
-                                  title="Edit message"
-                                >
-                                  <Edit2 className="h-3.5 w-3.5 text-amber-600" />
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  className="h-7 w-7 p-0"
-                                  onClick={() => {
-                                    setForwardingMessageId(m.id);
-                                    setForwardText(m.text);
-                                  }}
-                                  title="Forward message"
-                                >
-                                  <Share2 className="h-3.5 w-3.5 text-blue-600" />
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  className="h-7 w-7 p-0"
-                                  onClick={() => setDeleteConfirmId(m.id)}
-                                  title="Delete message"
-                                >
-                                  <Trash2 className="h-3.5 w-3.5 text-red-600" />
-                                </Button>
-                              </div>
-                            )}
-
-                            {m.senderType === "Admin" && !isCall && (
-                              <div className="flex items-center justify-end gap-1.5 px-1">
-                                <div className="flex items-center gap-0.5">
-                                  {renderStatus(m.status)}
-                                  {m.createdAt && (
-                                    <span className="text-[10px] text-muted-foreground">
-                                      {formatMessageTime(m.createdAt)}
-                                    </span>
-                                  )}
-                                </div>
-                              </div>
-                            )}
-                            {m.senderType === "Student" && !isCall && (
-                              <div className="flex items-center justify-start gap-0.5 px-1">
-                                <span className="text-[10px] text-muted-foreground">
-                                  {m.createdAt &&
-                                    formatMessageTime(m.createdAt)}
-                                </span>
-                              </div>
-                            )}
-                            {isCall && m.createdAt && (
-                              <div
-                                className={`flex items-center px-1 ${
-                                  m.senderType === "Admin"
-                                    ? "justify-end"
-                                    : "justify-start"
+                                      : "bg-white text-gray-900 border border-gray-200 rounded-bl-none shadow-sm"
                                 }`}
                               >
-                                <span className="text-[10px] text-muted-foreground">
-                                  {formatMessageTime(m.createdAt)}
+                                <span className="inline-flex items-center gap-2">
+                                  {isCall && (
+                                    <Phone className="h-4 w-4 text-emerald-600" />
+                                  )}
+                                  <span>{m.text}</span>
                                 </span>
                               </div>
-                            )}
+
+                              {/* ✅ Action buttons (show on hover for own messages) */}
+                              {m.senderType === "Admin" && !isCall && (
+                                <div className="hidden group-hover:flex gap-1 mt-1">
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    className="h-7 w-7 p-0"
+                                    onClick={() => {
+                                      setEditingMessageId(m.id);
+                                      setEditingText(m.text);
+                                    }}
+                                    title="Edit message"
+                                  >
+                                    <Edit2 className="h-3.5 w-3.5 text-amber-600" />
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    className="h-7 w-7 p-0"
+                                    onClick={() => {
+                                      setForwardingMessageId(m.id);
+                                      setForwardText(m.text);
+                                    }}
+                                    title="Forward message"
+                                  >
+                                    <Share2 className="h-3.5 w-3.5 text-blue-600" />
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    className="h-7 w-7 p-0"
+                                    onClick={() => setDeleteConfirmId(m.id)}
+                                    title="Delete message"
+                                  >
+                                    <Trash2 className="h-3.5 w-3.5 text-red-600" />
+                                  </Button>
+                                </div>
+                              )}
+
+                              {m.senderType === "Admin" && !isCall && (
+                                <div className="flex items-center justify-end gap-1.5 px-1">
+                                  <div className="flex items-center gap-0.5">
+                                    {renderStatus(m.status)}
+                                    {m.createdAt && (
+                                      <span className="text-[10px] text-muted-foreground">
+                                        {formatMessageTime(m.createdAt)}
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                              )}
+                              {m.senderType === "Student" && !isCall && (
+                                <div className="flex items-center justify-start gap-0.5 px-1">
+                                  <span className="text-[10px] text-muted-foreground">
+                                    {m.createdAt &&
+                                      formatMessageTime(m.createdAt)}
+                                  </span>
+                                </div>
+                              )}
+                              {isCall && m.createdAt && (
+                                <div
+                                  className={`flex items-center px-1 ${
+                                    m.senderType === "Admin"
+                                      ? "justify-end"
+                                      : "justify-start"
+                                  }`}
+                                >
+                                  <span className="text-[10px] text-muted-foreground">
+                                    {formatMessageTime(m.createdAt)}
+                                  </span>
+                                </div>
+                              )}
                             </div>
                           </div>
                         </div>
@@ -1970,3 +2008,6 @@ export default function AdminChat() {
           </div>
         </div>
       )}
+    </>
+  );
+}

@@ -142,6 +142,9 @@ export default function StudentChat() {
     [student?._id],
   );
 
+  // ✅ Message cache to avoid reloading on re-entry
+  const messageCache = useRef<Map<string, UiMessage[]>>(new Map());
+
   const { data: studentsData } = useQuery({
     queryKey: ["chat-students"],
     queryFn: async () => {
@@ -768,20 +771,29 @@ export default function StudentChat() {
           pendingStatusRef.current.delete(messageId);
         }
 
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: messageId,
-            text: plaintext,
-            senderType: p.senderType,
-            status: pendingStatus || p.status || "SENT",
-            createdAt: p.createdAt
-              ? new Date(p.createdAt).toISOString()
-              : undefined,
-            isOwnMessage,
-            contentType: p.contentType || "TEXT",
-          },
-        ]);
+        setMessages((prev) => {
+          const updated = [
+            ...prev,
+            {
+              id: messageId,
+              text: plaintext,
+              senderType: p.senderType,
+              status: pendingStatus || p.status || "SENT",
+              createdAt: p.createdAt
+                ? new Date(p.createdAt).toISOString()
+                : undefined,
+              isOwnMessage,
+              contentType: p.contentType || "TEXT",
+            },
+          ];
+
+          // ✅ Update cache with new message
+          if (conversationId) {
+            messageCache.current.set(conversationId, updated);
+          }
+
+          return updated;
+        });
 
         // Always mark as delivered when message is received
         if (p._id) {
@@ -1077,8 +1089,6 @@ export default function StudentChat() {
   const handleSelectContact = async (contact: Contact) => {
     setSelectedContact(contact);
     setMobileView("chat");
-    setMessages([]);
-    setHasMoreMessages(true);
     setUnreadCounts((prev) => ({ ...prev, [contact._id]: 0 }));
 
     try {
@@ -1095,8 +1105,22 @@ export default function StudentChat() {
           conversationId: convo._id,
         });
 
-        // Load initial messages (first 50)
-        await loadMessagesChunk(convo._id);
+        // ✅ Check if we have cached messages for this conversation
+        const cachedMessages = messageCache.current.get(convo._id);
+        if (cachedMessages && cachedMessages.length > 0) {
+          // Show cached messages immediately
+          console.log(
+            `📦 Using cached ${cachedMessages.length} messages for instant display`,
+          );
+          setMessages(cachedMessages);
+          setHasMoreMessages(cachedMessages.length >= 30);
+        } else {
+          // No cache, show loading
+          setMessages([]);
+          setHasMoreMessages(true);
+          // Load initial messages (first 30)
+          await loadMessagesChunk(convo._id);
+        }
       }
     } catch (error: unknown) {
       console.error("Error selecting contact:", error);
@@ -1251,10 +1275,24 @@ export default function StudentChat() {
 
       if (before) {
         // Prepend older messages
-        setMessages((prev) => [...validMessages, ...prev]);
+        setMessages((prev) => {
+          const updated = [...validMessages, ...prev];
+          // Update cache
+          if (conversationId) {
+            messageCache.current.set(conversationId, updated);
+          }
+          return updated;
+        });
       } else {
         // Initial load
         setMessages(validMessages);
+        // ✅ Cache these messages for instant re-entry
+        if (conversationId) {
+          messageCache.current.set(conversationId, validMessages);
+          console.log(
+            `💾 Cached ${validMessages.length} messages for ${conversationId}`,
+          );
+        }
 
         if (selectedContact) {
           setUnreadCounts((prev) => ({
@@ -2549,3 +2587,6 @@ export default function StudentChat() {
           </div>
         </div>
       )}
+    </>
+  );
+}
