@@ -77,6 +77,7 @@ export const studentChatApi = {
     recipientType: "Student" | "Admin";
     encryptedForRecipient: EncryptedPayload;
     encryptedForSender: EncryptedPayload;
+    senderPublicKey?: string;
     contentType?: "TEXT" | "CALL";
   }) =>
     studentApiCall<ApiResponse<ChatMessage>>(

@@ -496,6 +496,7 @@ export interface ChatMessage {
   contentType?: "TEXT" | "CALL";
   encryptedForSender: EncryptedPayload;
   encryptedForRecipient: EncryptedPayload;
+  senderPublicKey?: string;
   status: "SENT" | "DELIVERED" | "READ";
   createdAt: Date;
   updatedAt: Date;

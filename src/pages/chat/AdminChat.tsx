@@ -137,22 +137,6 @@ export default function AdminChat() {
     gcTime: 10 * 60 * 1000, // Keep in cache for 10 minutes
   });
 
-  // Query for student public key (cached for 30 minutes)
-  const { data: studentPublicKeyData } = useQuery({
-    queryKey: ["student-public-key", selectedContact?._id],
-    queryFn: async () => {
-      if (!selectedContact) return null;
-      const response = await chatApi.getPublicKey(
-        "Student",
-        selectedContact._id,
-      );
-      return response.data?.data?.publicKey;
-    },
-    staleTime: 30 * 60 * 1000, // 30 minutes
-    gcTime: 60 * 60 * 1000, // Keep in cache for 1 hour
-    enabled: !!selectedContact,
-  });
-
   const contacts = useMemo<Contact[]>(() => {
     if (!Array.isArray(contactsData)) return [];
     return contactsData.map((s: { _id: string; name: string }) => ({
@@ -312,6 +296,7 @@ export default function AdminChat() {
             algorithm: "sealed_box",
             ciphertext: encryptedForSender,
           },
+          senderPublicKey: keypair.publicKey,
           contentType: "CALL",
           senderName: "Admin",
           meta: {
@@ -569,37 +554,34 @@ export default function AdminChat() {
       try {
         const keypair = await getOrCreateKeyPair();
 
-        // Get sender's public key for decryption
-        console.log(`🔑 Fetching public key for ${p.senderType} ${p.senderId}`);
-        const pubKeyResponse = await chatApi.getPublicKey(
-          p.senderType,
-          p.senderId,
-        );
-
-        if (pubKeyResponse.error) {
-          console.error(
-            "❌ Failed to fetch sender public key:",
-            pubKeyResponse.error,
-            "Sender:",
-            p.senderType,
-            p.senderId,
-          );
-          return;
-        }
-
-        const senderPublicKey = pubKeyResponse.data?.data?.publicKey;
+        let senderPublicKey = p.senderPublicKey;
         if (!senderPublicKey) {
-          console.error(
-            "❌ No public key in response for sender",
+          const pubKeyResponse = await chatApi.getPublicKey(
             p.senderType,
             p.senderId,
           );
-          return;
-        }
 
-        console.log(
-          `✅ Got public key for ${p.senderType} ${p.senderId}, attempting decryption`,
-        );
+          if (pubKeyResponse.error) {
+            console.error(
+              "❌ Failed to fetch sender public key:",
+              pubKeyResponse.error,
+              "Sender:",
+              p.senderType,
+              p.senderId,
+            );
+            return;
+          }
+
+          senderPublicKey = pubKeyResponse.data?.data?.publicKey;
+          if (!senderPublicKey) {
+            console.error(
+              "❌ No public key in response for sender",
+              p.senderType,
+              p.senderId,
+            );
+            return;
+          }
+        }
 
         // Decrypt using the recipient's encrypted version
         let plaintext: string;
@@ -670,24 +652,9 @@ export default function AdminChat() {
       try {
         const keypair = await getOrCreateKeyPair();
 
-        // Get sender's public key for decryption
-        const pubKeyResponse = await chatApi.getPublicKey(
-          p.senderType,
-          p.senderId,
-        );
-
-        if (pubKeyResponse.error) {
-          console.error(
-            "Failed to fetch sender public key:",
-            pubKeyResponse.error,
-          );
-          return;
-        }
-
-        const senderPublicKey = pubKeyResponse.data?.data?.publicKey;
+        let senderPublicKey = p.senderPublicKey;
         if (!senderPublicKey) {
-          console.error("No public key in response");
-          return;
+          senderPublicKey = keypair.publicKey;
         }
 
         // Decrypt using the sender's encrypted version
@@ -929,24 +896,30 @@ export default function AdminChat() {
               return null;
             }
 
-            // Get sender's public key for decryption
-            const pubKeyResponse = await chatApi.getPublicKey(
-              m.senderType,
-              m.senderId,
-            );
-
-            if (pubKeyResponse.error) {
-              console.error(
-                "Failed to fetch sender public key for message",
-                m._id,
-              );
-              return null;
-            }
-
-            const senderPublicKey = pubKeyResponse.data?.data?.publicKey;
+            let senderPublicKey = m.senderPublicKey;
             if (!senderPublicKey) {
-              console.error("No public key in response for message", m._id);
-              return null;
+              if (isOwnMessage) {
+                senderPublicKey = keypair.publicKey;
+              } else {
+                const pubKeyResponse = await chatApi.getPublicKey(
+                  m.senderType,
+                  m.senderId,
+                );
+
+                if (pubKeyResponse.error) {
+                  console.error(
+                    "Failed to fetch sender public key for message",
+                    m._id,
+                  );
+                  return null;
+                }
+
+                senderPublicKey = pubKeyResponse.data?.data?.publicKey;
+                if (!senderPublicKey) {
+                  console.error("No public key in response for message", m._id);
+                  return null;
+                }
+              }
             }
 
             const text = await decryptForSelf(
@@ -971,7 +944,15 @@ export default function AdminChat() {
             } as UiMessage;
           } catch (error) {
             console.error("Error decrypting message:", error);
-            return null;
+            return {
+              id: m._id,
+              text: "Unable to decrypt message",
+              senderType: m.senderType,
+              status: m.status,
+              createdAt: m.createdAt,
+              isOwnMessage: String(m.senderId) === String(admin?._id || ""),
+              contentType: m.contentType ?? "TEXT",
+            } as UiMessage;
           }
         }),
       );
@@ -1015,8 +996,8 @@ export default function AdminChat() {
     setLoadingMore(true);
     try {
       const oldestMessage = messages[0];
-      if (oldestMessage?.id) {
-        await loadMessagesChunk(conversationId, oldestMessage.id);
+      if (oldestMessage?.createdAt) {
+        await loadMessagesChunk(conversationId, oldestMessage.createdAt);
       }
     } finally {
       setLoadingMore(false);
@@ -1045,30 +1026,19 @@ export default function AdminChat() {
       ]);
       setMessage("");
 
-      // Use cached public key from React Query, or fetch fresh if not available
-      let recipientPublicKey = studentPublicKeyData;
+      // Always fetch fresh recipient key to avoid stale cache
+      const publicKeyRes = await chatApi.getPublicKey(
+        "Student",
+        selectedContact._id,
+      );
+      const recipientPublicKey = publicKeyRes.data?.data?.publicKey;
 
       if (!recipientPublicKey) {
-        const publicKeyRes = await chatApi.getPublicKey(
-          "Student",
-          selectedContact._id,
-        );
-        recipientPublicKey = publicKeyRes.data?.data?.publicKey;
-
-        if (!recipientPublicKey) {
-          toast.error(
-            "Recipient's public key not available. Please try again.",
-          );
-          // Remove the temp message if public key fetch fails
-          setMessages((prev) => prev.filter((m) => m.id !== tempMessageId));
-          setMessage(messageText);
-          return;
-        }
-
-        // Invalidate and refetch the query to populate cache
-        queryClient.invalidateQueries({
-          queryKey: ["student-public-key", selectedContact._id],
-        });
+        toast.error("Recipient's public key not available. Please try again.");
+        // Remove the temp message if public key fetch fails
+        setMessages((prev) => prev.filter((m) => m.id !== tempMessageId));
+        setMessage(messageText);
+        return;
       }
 
       const encryptedForRecipient = await encryptForRecipient(
@@ -1092,6 +1062,7 @@ export default function AdminChat() {
           algorithm: "sealed_box",
           ciphertext: encryptedForSender,
         },
+        senderPublicKey: keypair.publicKey,
         contentType: "TEXT",
         senderName: "Admin",
       });

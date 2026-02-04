@@ -25,6 +25,7 @@ export interface ChatMessage {
   contentType: "TEXT" | "CALL";
   encryptedForRecipient: EncryptedPayload;
   encryptedForSender: EncryptedPayload;
+  senderPublicKey?: string;
   status: "SENT" | "DELIVERED" | "READ";
   createdAt: string;
 }
@@ -67,6 +68,7 @@ export const chatApi = {
     recipientType: "Student" | "Admin";
     encryptedForRecipient: EncryptedPayload;
     encryptedForSender: EncryptedPayload;
+    senderPublicKey?: string;
     contentType?: "TEXT" | "CALL";
   }) =>
     apiCall<ApiResponse<ChatMessage>>(

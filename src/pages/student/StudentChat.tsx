@@ -204,26 +204,6 @@ export default function StudentChat() {
     retry: 1,
   });
 
-  // Query for recipient public key (cached for 30 minutes)
-  const { data: recipientPublicKeyData } = useQuery({
-    queryKey: [
-      "recipient-public-key",
-      selectedContact?.userType,
-      selectedContact?._id,
-    ],
-    queryFn: async () => {
-      if (!selectedContact) return null;
-      const response = await studentChatApi.getPublicKey(
-        selectedContact.userType,
-        selectedContact._id,
-      );
-      return response.data?.data?.publicKey;
-    },
-    staleTime: 30 * 60 * 1000, // 30 minutes
-    gcTime: 60 * 60 * 1000, // Keep in cache for 1 hour
-    enabled: !!selectedContact,
-  });
-
   const students = useMemo<Contact[]>(() => {
     if (!Array.isArray(studentsData)) return [];
     return studentsData.map((s: { _id: string; name: string }) => ({
@@ -457,6 +437,7 @@ export default function StudentChat() {
             algorithm: "sealed_box",
             ciphertext: encryptedForSender,
           },
+          senderPublicKey: keypair.publicKey,
           contentType: "CALL",
           senderName: "Student",
           meta: {
@@ -715,24 +696,26 @@ export default function StudentChat() {
       try {
         const keypair = await getOrCreateKeyPair();
 
-        // Get sender's public key for decryption
-        const pubKeyResponse = await studentChatApi.getPublicKey(
-          p.senderType,
-          p.senderId,
-        );
-
-        if (pubKeyResponse.error) {
-          console.error(
-            "Failed to fetch sender public key:",
-            pubKeyResponse.error,
-          );
-          return;
-        }
-
-        const senderPublicKey = pubKeyResponse.data?.data?.publicKey;
+        let senderPublicKey = p.senderPublicKey;
         if (!senderPublicKey) {
-          console.error("No public key in response");
-          return;
+          const pubKeyResponse = await studentChatApi.getPublicKey(
+            p.senderType,
+            p.senderId,
+          );
+
+          if (pubKeyResponse.error) {
+            console.error(
+              "Failed to fetch sender public key:",
+              pubKeyResponse.error,
+            );
+            return;
+          }
+
+          senderPublicKey = pubKeyResponse.data?.data?.publicKey;
+          if (!senderPublicKey) {
+            console.error("No public key in response");
+            return;
+          }
         }
 
         // Decrypt using the recipient's encrypted version
@@ -801,24 +784,9 @@ export default function StudentChat() {
       try {
         const keypair = await getOrCreateKeyPair();
 
-        // Get sender's public key for decryption
-        const pubKeyResponse = await studentChatApi.getPublicKey(
-          p.senderType,
-          p.senderId,
-        );
-
-        if (pubKeyResponse.error) {
-          console.error(
-            "Failed to fetch sender public key:",
-            pubKeyResponse.error,
-          );
-          return;
-        }
-
-        const senderPublicKey = pubKeyResponse.data?.data?.publicKey;
+        let senderPublicKey = p.senderPublicKey;
         if (!senderPublicKey) {
-          console.error("No public key in response");
-          return;
+          senderPublicKey = keypair.publicKey;
         }
 
         // Decrypt using the sender's encrypted version (for own messages)
@@ -1131,24 +1099,30 @@ export default function StudentChat() {
               return null;
             }
 
-            // Get sender's public key for decryption
-            const pubKeyResponse = await studentChatApi.getPublicKey(
-              m.senderType,
-              m.senderId,
-            );
-
-            if (pubKeyResponse.error) {
-              console.error(
-                "Failed to fetch sender public key for message",
-                m._id,
-              );
-              return null;
-            }
-
-            const senderPublicKey = pubKeyResponse.data?.data?.publicKey;
+            let senderPublicKey = m.senderPublicKey;
             if (!senderPublicKey) {
-              console.error("No public key in response for message", m._id);
-              return null;
+              if (isOwnMessage) {
+                senderPublicKey = keypair.publicKey;
+              } else {
+                const pubKeyResponse = await studentChatApi.getPublicKey(
+                  m.senderType,
+                  m.senderId,
+                );
+
+                if (pubKeyResponse.error) {
+                  console.error(
+                    "Failed to fetch sender public key for message",
+                    m._id,
+                  );
+                  return null;
+                }
+
+                senderPublicKey = pubKeyResponse.data?.data?.publicKey;
+                if (!senderPublicKey) {
+                  console.error("No public key in response for message", m._id);
+                  return null;
+                }
+              }
             }
 
             let text: string;
@@ -1159,11 +1133,17 @@ export default function StudentChat() {
                 senderPublicKey,
               );
             } catch (_decryptError) {
-              console.warn(
-                "Skipping loaded message - decryption failed:",
-                m._id,
-              );
-              return null;
+              return {
+                id: m._id,
+                text: "Unable to decrypt message",
+                senderType: m.senderType,
+                status: m.status,
+                createdAt: m.createdAt
+                  ? new Date(m.createdAt).toISOString()
+                  : undefined,
+                isOwnMessage,
+                contentType: m.contentType ?? "TEXT",
+              };
             }
 
             const pendingStatus = pendingStatusRef.current.get(m._id);
@@ -1184,7 +1164,17 @@ export default function StudentChat() {
             };
           } catch (error) {
             console.error("Error decrypting message:", error);
-            return null;
+            return {
+              id: m._id,
+              text: "Unable to decrypt message",
+              senderType: m.senderType,
+              status: m.status,
+              createdAt: m.createdAt
+                ? new Date(m.createdAt).toISOString()
+                : undefined,
+              isOwnMessage: String(m.senderId) === String(student?._id || ""),
+              contentType: m.contentType ?? "TEXT",
+            };
           }
         }),
       );
@@ -1228,8 +1218,8 @@ export default function StudentChat() {
     setLoadingMore(true);
     try {
       const oldestMessage = messages[0];
-      if (oldestMessage?.id) {
-        await loadMessagesChunk(conversationId, oldestMessage.id);
+      if (oldestMessage?.createdAt) {
+        await loadMessagesChunk(conversationId, oldestMessage.createdAt);
       }
     } finally {
       setLoadingMore(false);
@@ -1267,47 +1257,32 @@ export default function StudentChat() {
     try {
       const keypair = await getOrCreateKeyPair();
 
-      // Use cached public key from React Query, or fetch fresh if not available
-      let recipientPublicKey = recipientPublicKeyData;
+      // Always fetch fresh recipient key to avoid stale cache
+      const publicKeyRes = await studentChatApi.getPublicKey(
+        selectedContact.userType,
+        selectedContact._id,
+      );
 
-      if (!recipientPublicKey) {
-        const publicKeyRes = await studentChatApi.getPublicKey(
-          selectedContact.userType,
-          selectedContact._id,
+      if (publicKeyRes.error) {
+        console.error(
+          "Failed to fetch recipient public key:",
+          publicKeyRes.error,
         );
+        toast.error("Failed to fetch recipient public key");
+        // Remove temp message on error
+        setMessages((prev) => prev.filter((m) => m.id !== tempId));
+        setMessage(messageText);
+        return;
+      }
 
-        if (publicKeyRes.error) {
-          console.error(
-            "Failed to fetch recipient public key:",
-            publicKeyRes.error,
-          );
-          toast.error("Failed to fetch recipient public key");
-          // Remove temp message on error
-          setMessages((prev) => prev.filter((m) => m.id !== tempId));
-          setMessage(messageText);
-          return;
-        }
-
-        recipientPublicKey = publicKeyRes.data?.data?.publicKey;
-        if (!recipientPublicKey) {
-          console.error("No recipient public key found");
-          toast.error(
-            "Recipient's public key not available. Please try again.",
-          );
-          // Remove temp message on error
-          setMessages((prev) => prev.filter((m) => m.id !== tempId));
-          setMessage(messageText);
-          return;
-        }
-
-        // Invalidate and refetch the query to populate cache
-        queryClient.invalidateQueries({
-          queryKey: [
-            "recipient-public-key",
-            selectedContact.userType,
-            selectedContact._id,
-          ],
-        });
+      const recipientPublicKey = publicKeyRes.data?.data?.publicKey;
+      if (!recipientPublicKey) {
+        console.error("No recipient public key found");
+        toast.error("Recipient's public key not available. Please try again.");
+        // Remove temp message on error
+        setMessages((prev) => prev.filter((m) => m.id !== tempId));
+        setMessage(messageText);
+        return;
       }
 
       const encryptedForRecipient = await encryptForRecipient(
@@ -1338,6 +1313,7 @@ export default function StudentChat() {
           algorithm: "sealed_box",
           ciphertext: encryptedForSender,
         },
+        senderPublicKey: keypair.publicKey,
         contentType: "TEXT",
         senderName: "Student",
         tempId,
