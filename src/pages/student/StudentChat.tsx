@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { chatApi } from "@/api/chat.api";
 import { studentChatApi } from "@/api/studentChat.api";
 import { studentAuthApi } from "@/api/studentAuth.api";
 import { socketService } from "@/api/socket.service";
@@ -1075,7 +1076,7 @@ export default function StudentChat() {
 
     scrollContainer.addEventListener("scroll", handleScroll);
     return () => scrollContainer.removeEventListener("scroll", handleScroll);
-  }, [conversationId, loadingMore, hasMoreMessages, handleLoadMoreMessages]);
+  }, [conversationId, loadingMore, hasMoreMessages]);
 
   // ✅ Notify backend when leaving a conversation
   useEffect(() => {
@@ -1339,16 +1340,17 @@ export default function StudentChat() {
     if (!editingMessageId || !editingText.trim()) return;
 
     try {
-      const keypair = await getOrCreateKeyPair(keyStorageKey);
       const encryptedPayload = await encryptForRecipient(
         editingText.trim(),
         selectedContact?._id || "",
-        "Admin",
       );
 
       await chatApi.editMessage(editingMessageId, {
         text: editingText.trim(),
-        encryptedPayload,
+        encryptedPayload: {
+          algorithm: "sealed_box",
+          ciphertext: encryptedPayload,
+        },
       });
 
       // Update local state
@@ -1399,16 +1401,17 @@ export default function StudentChat() {
     if (!forwardingMessageId || !forwardText.trim()) return;
 
     try {
-      const keypair = await getOrCreateKeyPair(keyStorageKey);
       const encryptedPayload = await encryptForRecipient(
         forwardText.trim(),
         selectedContact?._id || "",
-        "Admin",
       );
 
       await chatApi.forwardMessage(forwardingMessageId, {
         text: forwardText.trim(),
-        encryptedPayload,
+        encryptedPayload: {
+          algorithm: "sealed_box",
+          ciphertext: encryptedPayload,
+        },
       });
 
       socketService.emit("chat:forwarded", {

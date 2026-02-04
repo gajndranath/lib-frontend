@@ -47,7 +47,6 @@ import {
   Users,
   Info,
   Loader2,
-  MoreVertical,
   Edit2,
   Trash2,
   Share2,
@@ -341,7 +340,13 @@ export default function AdminChat() {
         console.error("Failed to log call:", error);
       }
     },
-    [conversationId, selectedContact, incomingCallData, isOnline],
+    [
+      conversationId,
+      selectedContact,
+      incomingCallData,
+      isOnline,
+      keyStorageKey,
+    ],
   );
 
   const endCall = useCallback(() => {
@@ -703,7 +708,7 @@ export default function AdminChat() {
             keypair,
             senderPublicKey,
           );
-        } catch (decryptError) {
+        } catch (_decryptError) {
           console.warn("Skipping sent message - decryption failed:", p._id);
           return;
         }
@@ -845,7 +850,14 @@ export default function AdminChat() {
       socketService.off("call:end");
       socketService.off("call:mute-status");
     };
-  }, [conversationId, handleIncomingCall, endCall, selectedContact, admin]);
+  }, [
+    conversationId,
+    handleIncomingCall,
+    endCall,
+    selectedContact,
+    admin,
+    keyStorageKey,
+  ]);
 
   // Auto-scroll to bottom on new messages
   useEffect(() => {
@@ -863,6 +875,19 @@ export default function AdminChat() {
 
   // ✅ Load more messages when scrolling to top
   useEffect(() => {
+    const handleLoadMoreMessages = async () => {
+      if (!conversationId || loadingMore || !hasMoreMessages) return;
+      setLoadingMore(true);
+      try {
+        const oldestMessage = messages[0];
+        if (oldestMessage?.createdAt) {
+          await loadMessagesChunk(conversationId, oldestMessage.createdAt);
+        }
+      } finally {
+        setLoadingMore(false);
+      }
+    };
+
     if (!scrollAreaRef.current) return;
     const scrollContainer = scrollAreaRef.current.querySelector(
       "[data-radix-scroll-area-viewport]",
@@ -879,7 +904,8 @@ export default function AdminChat() {
 
     scrollContainer.addEventListener("scroll", handleScroll);
     return () => scrollContainer.removeEventListener("scroll", handleScroll);
-  }, [conversationId, loadingMore, hasMoreMessages, handleLoadMoreMessages]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [conversationId, loadingMore, hasMoreMessages]);
 
   // ✅ Notify backend when leaving a conversation
   useEffect(() => {
@@ -948,7 +974,6 @@ export default function AdminChat() {
       const messagesList = (messagesRes.data?.data || []) as ChatMessage[];
 
       if (messagesList.length > 0) {
-        const firstMsg = messagesList[0];
         console.log(
           `📥 Admin received ${messagesList.length} messages. Decrypting...`,
         );
@@ -1116,16 +1141,17 @@ export default function AdminChat() {
     if (!editingMessageId || !editingText.trim()) return;
 
     try {
-      const keypair = await getOrCreateKeyPair(keyStorageKey);
       const encryptedPayload = await encryptForRecipient(
         editingText.trim(),
         selectedContact?._id || "",
-        "Student",
       );
 
       await chatApi.editMessage(editingMessageId, {
         text: editingText.trim(),
-        encryptedPayload,
+        encryptedPayload: {
+          algorithm: "sealed_box",
+          ciphertext: encryptedPayload,
+        },
       });
 
       // Update local state
@@ -1176,16 +1202,17 @@ export default function AdminChat() {
     if (!forwardingMessageId || !forwardText.trim()) return;
 
     try {
-      const keypair = await getOrCreateKeyPair(keyStorageKey);
       const encryptedPayload = await encryptForRecipient(
         forwardText.trim(),
         selectedContact?._id || "",
-        "Student",
       );
 
       await chatApi.forwardMessage(forwardingMessageId, {
         text: forwardText.trim(),
-        encryptedPayload,
+        encryptedPayload: {
+          algorithm: "sealed_box",
+          ciphertext: encryptedPayload,
+        },
       });
 
       socketService.emit("chat:forwarded", {
