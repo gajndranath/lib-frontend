@@ -4,6 +4,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { useAuthStore } from "@/store/auth.store";
 import { adminApi } from "@/api/admin.api";
 import { socketService } from "@/api/socket.service";
+import { clearAllChatKeys } from "@/lib/crypto";
 import { toast } from "sonner";
 
 export const useAuth = () => {
@@ -89,6 +90,9 @@ export const useAuth = () => {
     localStorage.removeItem("accessToken");
     localStorage.removeItem("admin");
     localStorage.removeItem("rememberedEmail");
+
+    // 🔐 Clear all encryption keys
+    clearAllChatKeys();
 
     // Clear session storage
     sessionStorage.clear();

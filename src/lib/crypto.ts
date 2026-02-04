@@ -97,6 +97,23 @@ export const storeKeyPair = (
   localStorage.setItem(storageKey, JSON.stringify(keyPair));
 };
 
+export const clearKeyPair = (storageKey: string = STORAGE_KEY): void => {
+  localStorage.removeItem(storageKey);
+  console.log(`🔐 Cleared keypair: ${storageKey}`);
+};
+
+export const clearAllChatKeys = (): void => {
+  // Clear all storage keys that start with our prefix
+  const keys = Object.keys(localStorage);
+  keys.forEach((key) => {
+    if (key.startsWith(STORAGE_KEY)) {
+      localStorage.removeItem(key);
+      console.log(`🔐 Cleared: ${key}`);
+    }
+  });
+  console.log(`🔐 All chat keys cleared`);
+};
+
 const KDF_ITERATIONS = 310000;
 
 const deriveAesKey = async (password: string, salt: Uint8Array) => {
@@ -239,6 +256,14 @@ export const encryptForRecipient = async (
     "Sender private key",
   );
 
+  console.log(`🔐 Encrypting for recipient:`, {
+    plaintextLength: plaintext.length,
+    messageLength: message.length,
+    nonceLength: nonce.length,
+    recipientPubKeyType: typeof recipientPublicKey,
+    senderSecretKeyLength: senderSecretKey.length,
+  });
+
   // Encrypt using authenticated encryption
   const encrypted = nacl.box(message, nonce, recipientPubKey, senderSecretKey);
 
@@ -246,6 +271,11 @@ export const encryptForRecipient = async (
   const combined = new Uint8Array(nonce.length + encrypted.length);
   combined.set(nonce);
   combined.set(encrypted, nonce.length);
+
+  console.log(`✅ Encrypted:`, {
+    encryptedLength: encrypted.length,
+    combinedLength: combined.length,
+  });
 
   return toBase64(combined);
 };
@@ -306,6 +336,12 @@ export const decryptForSelf = async (
       recipientSecretKey.length,
       `sender key:`,
       senderPubKey.length,
+    );
+    console.log(
+      `🔍 Debug - Sender public key type:`,
+      typeof senderPublicKey,
+      `Keypair private key type:`,
+      typeof keyPair.privateKey,
     );
     throw new Error("Decryption failed");
   }

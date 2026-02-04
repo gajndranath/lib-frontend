@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { studentAuthApi } from "@/api/studentAuth.api";
 import { useStudentAuthStore } from "@/store/studentAuth.store";
 import { socketService } from "@/api/socket.service";
+import { clearAllChatKeys } from "@/lib/crypto";
 
 export const useStudentAuth = () => {
   const navigate = useNavigate();
@@ -58,6 +59,9 @@ export const useStudentAuth = () => {
     // Clear local storage - authentication
     localStorage.removeItem("studentAccessToken");
     localStorage.removeItem("student");
+
+    // 🔐 Clear all encryption keys
+    clearAllChatKeys();
 
     // Clear session storage
     sessionStorage.clear();
