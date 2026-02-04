@@ -67,7 +67,14 @@ export const StudentLogin = () => {
 
         const localKeyPair = getStoredKeyPair(storageKey);
         const backupRes = await studentChatApi.getKeyBackup();
-        const backup = backupRes.data?.data;
+        const backup =
+          backupRes.error?.statusCode === 404
+            ? null
+            : (backupRes.data?.data ?? null);
+
+        if (backupRes.error && backupRes.error.statusCode !== 404) {
+          console.error("Key backup fetch failed:", backupRes.error.message);
+        }
 
         if (backup) {
           try {
