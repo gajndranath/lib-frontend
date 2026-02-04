@@ -90,18 +90,6 @@ export const useAuth = () => {
     localStorage.removeItem("admin");
     localStorage.removeItem("rememberedEmail");
 
-    // Clear E2E encryption keypairs (CRITICAL: prevents old keypair reuse)
-    if (admin?._id) {
-      localStorage.removeItem(`e2e_keypair_v1:Admin:${admin._id}`);
-    }
-    // Clear any leftover generic keypair keys
-    const keys = Object.keys(localStorage);
-    keys.forEach((key) => {
-      if (key.includes("e2e_keypair")) {
-        localStorage.removeItem(key);
-      }
-    });
-
     // Clear session storage
     sessionStorage.clear();
 
@@ -145,6 +133,7 @@ export const useAuth = () => {
     isAuthenticated: !!admin && !!accessToken,
     isLoading: isLoading || loginMutation.isPending,
     login: loginMutation.mutate,
+    loginAsync: loginMutation.mutateAsync,
     logout,
     hasPermission,
     isSuperAdmin: admin?.role === "SUPER_ADMIN",

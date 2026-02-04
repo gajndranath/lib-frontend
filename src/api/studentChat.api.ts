@@ -5,6 +5,7 @@ import type {
   EncryptedPayload,
   ChatConversation,
   ChatMessage,
+  KeyBackupPayload,
 } from "@/api/chat.api";
 
 export interface FriendRequestItem {
@@ -35,6 +36,16 @@ export const studentChatApi = {
   setPublicKey: (publicKey: string) =>
     studentApiCall<ApiResponse<null>>(
       studentAxios.post("/student-chat/keys", { publicKey }),
+    ),
+
+  getKeyBackup: () =>
+    studentApiCall<ApiResponse<KeyBackupPayload>>(
+      studentAxios.get("/student-chat/keys/backup"),
+    ),
+
+  setKeyBackup: (payload: KeyBackupPayload) =>
+    studentApiCall<ApiResponse<null>>(
+      studentAxios.post("/student-chat/keys/backup", payload),
     ),
 
   getPublicKey: (userType: "Student" | "Admin", userId: string) =>

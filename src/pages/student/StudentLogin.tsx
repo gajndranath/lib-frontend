@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useMutation } from "@tanstack/react-query";
 import { Eye, EyeOff, Mail, Lock, ArrowRight } from "lucide-react";
 import { studentAuthApi } from "@/api/studentAuth.api";
+import { studentChatApi } from "@/api/studentChat.api";
 import { useStudentAuthStore } from "@/store/studentAuth.store";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,6 +16,14 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { toast } from "sonner";
+import {
+  buildKeyStorageKey,
+  createKeyBackupPayload,
+  getOrCreateKeyPair,
+  getStoredKeyPair,
+  restoreKeyPairFromBackup,
+  storeKeyPair,
+} from "@/lib/crypto";
 
 export const StudentLogin = () => {
   const navigate = useNavigate();
@@ -35,17 +44,60 @@ export const StudentLogin = () => {
       }
     },
     onError: (error: Error) => {
-      toast.error(error.message || "Login failed");
+      console.error("Login failed:", error.message);
     },
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email || !password) {
       toast.error("Please fill all fields");
       return;
     }
-    loginMutation.mutate({ email, password });
+    try {
+      await loginMutation.mutateAsync({ email, password });
+
+      const studentRaw = localStorage.getItem("student");
+      const studentData = studentRaw ? JSON.parse(studentRaw) : null;
+      if (studentData?._id) {
+        const storageKey = buildKeyStorageKey({
+          userType: "Student",
+          userId: studentData._id,
+        });
+
+        const localKeyPair = getStoredKeyPair(storageKey);
+        const backupRes = await studentChatApi.getKeyBackup();
+        const backup = backupRes.data?.data;
+
+        if (backup) {
+          try {
+            const restored = await restoreKeyPairFromBackup(backup, password);
+            storeKeyPair(restored, storageKey);
+            await studentChatApi.setPublicKey(restored.publicKey);
+          } catch (restoreError) {
+            if (localKeyPair) {
+              const payload = await createKeyBackupPayload(
+                localKeyPair,
+                password,
+              );
+              await studentChatApi.setKeyBackup(payload);
+              await studentChatApi.setPublicKey(localKeyPair.publicKey);
+            } else {
+              console.error("Key backup restore failed:", restoreError);
+            }
+          }
+        } else {
+          const keyPair =
+            localKeyPair ?? (await getOrCreateKeyPair(storageKey));
+          await studentChatApi.setPublicKey(keyPair.publicKey);
+          const payload = await createKeyBackupPayload(keyPair, password);
+          await studentChatApi.setKeyBackup(payload);
+        }
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Login failed";
+      toast.error(message);
+    }
   };
 
   return (

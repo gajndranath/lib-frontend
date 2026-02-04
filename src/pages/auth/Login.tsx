@@ -17,6 +17,15 @@ import {
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
 import { cn } from "@/lib/utils";
+import { chatApi } from "@/api/chat.api";
+import {
+  buildKeyStorageKey,
+  createKeyBackupPayload,
+  getOrCreateKeyPair,
+  getStoredKeyPair,
+  restoreKeyPairFromBackup,
+  storeKeyPair,
+} from "@/lib/crypto";
 
 const loginSchema = z.object({
   email: z.string().email("Invalid email address").min(1, "Email is required"),
@@ -32,7 +41,7 @@ type LoginFormData = z.infer<typeof loginSchema>;
 export const Login: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const { login, isLoading } = useAuth();
+  const { loginAsync, isLoading } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -86,20 +95,57 @@ export const Login: React.FC = () => {
         localStorage.removeItem("rememberedEmail");
       }
 
-      await login({
+      await loginAsync({
         email: data.email,
         password: data.password,
       });
 
-      // Login successful, redirect will be handled by AuthProvider
+      const adminRaw = localStorage.getItem("admin");
+      const adminData = adminRaw ? JSON.parse(adminRaw) : null;
+      if (adminData?._id) {
+        const storageKey = buildKeyStorageKey({
+          userType: "Admin",
+          userId: adminData._id,
+        });
+
+        const localKeyPair = getStoredKeyPair(storageKey);
+        const backupRes = await chatApi.getKeyBackup();
+        const backup = backupRes.data?.data;
+
+        if (backup) {
+          try {
+            const restored = await restoreKeyPairFromBackup(
+              backup,
+              data.password,
+            );
+            storeKeyPair(restored, storageKey);
+            await chatApi.setPublicKey(restored.publicKey);
+          } catch (restoreError) {
+            if (localKeyPair) {
+              const payload = await createKeyBackupPayload(
+                localKeyPair,
+                data.password,
+              );
+              await chatApi.setKeyBackup(payload);
+              await chatApi.setPublicKey(localKeyPair.publicKey);
+            } else {
+              console.error("Key backup restore failed:", restoreError);
+            }
+          }
+        } else {
+          const keyPair =
+            localKeyPair ?? (await getOrCreateKeyPair(storageKey));
+          await chatApi.setPublicKey(keyPair.publicKey);
+          const payload = await createKeyBackupPayload(keyPair, data.password);
+          await chatApi.setKeyBackup(payload);
+        }
+      }
+
       toast.success("Login successful!");
     } catch (error: unknown) {
       const errorMessage =
         error instanceof Error ? error.message : "An error occurred";
       console.error("Login error:", errorMessage);
-      toast.error(
-        errorMessage || "Login failed. Please check your credentials.",
-      );
     } finally {
       setIsSubmitting(false);
     }

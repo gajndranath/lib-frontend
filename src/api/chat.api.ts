@@ -7,6 +7,14 @@ export interface EncryptedPayload {
   ciphertext: string;
 }
 
+export interface KeyBackupPayload {
+  version: number;
+  publicKey: string;
+  encryptedPrivateKey: string;
+  salt: string;
+  iv: string;
+}
+
 export interface ChatConversation {
   _id: string;
   participants: Array<{ userId: string; userType: "Student" | "Admin" }>;
@@ -33,6 +41,16 @@ export interface ChatMessage {
 export const chatApi = {
   setPublicKey: (publicKey: string) =>
     apiCall<ApiResponse<null>>(axiosInstance.post("/chat/keys", { publicKey })),
+
+  getKeyBackup: () =>
+    apiCall<ApiResponse<KeyBackupPayload>>(
+      axiosInstance.get("/chat/keys/backup"),
+    ),
+
+  setKeyBackup: (payload: KeyBackupPayload) =>
+    apiCall<ApiResponse<null>>(
+      axiosInstance.post("/chat/keys/backup", payload),
+    ),
 
   getPublicKey: (userType: "Student" | "Admin", userId: string) =>
     apiCall<ApiResponse<{ publicKey: string }>>(

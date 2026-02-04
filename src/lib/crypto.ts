@@ -15,6 +15,14 @@ export interface KeyPair {
   privateKey: string;
 }
 
+export interface KeyBackupPayload {
+  version: number;
+  publicKey: string;
+  encryptedPrivateKey: string;
+  salt: string;
+  iv: string;
+}
+
 // Utility functions for base64 encoding that work in browser
 const toBase64 = (bytes: Uint8Array): string => {
   let binary = "";
@@ -31,6 +39,12 @@ const fromBase64 = (b64: string): Uint8Array => {
     bytes[i] = binary.charCodeAt(i);
   }
   return bytes;
+};
+
+const ensureSubtleCrypto = () => {
+  if (!globalThis.crypto?.subtle) {
+    throw new Error("WebCrypto is not available in this environment");
+  }
 };
 
 export const initCrypto = async () => {
@@ -62,6 +76,106 @@ export const getOrCreateKeyPair = async (
   };
   localStorage.setItem(storageKey, JSON.stringify(kp));
   return kp;
+};
+
+export const getStoredKeyPair = (
+  storageKey: string = STORAGE_KEY,
+): KeyPair | null => {
+  const stored = localStorage.getItem(storageKey);
+  if (!stored) return null;
+  try {
+    return JSON.parse(stored) as KeyPair;
+  } catch {
+    return null;
+  }
+};
+
+export const storeKeyPair = (
+  keyPair: KeyPair,
+  storageKey: string = STORAGE_KEY,
+): void => {
+  localStorage.setItem(storageKey, JSON.stringify(keyPair));
+};
+
+const KDF_ITERATIONS = 310000;
+
+const deriveAesKey = async (password: string, salt: Uint8Array) => {
+  ensureSubtleCrypto();
+  const baseKey = await crypto.subtle.importKey(
+    "raw",
+    utf8ToBytes(password),
+    "PBKDF2",
+    false,
+    ["deriveKey"],
+  );
+
+  return crypto.subtle.deriveKey(
+    {
+      name: "PBKDF2",
+      salt,
+      iterations: KDF_ITERATIONS,
+      hash: "SHA-256",
+    },
+    baseKey,
+    { name: "AES-GCM", length: 256 },
+    false,
+    ["encrypt", "decrypt"],
+  );
+};
+
+export const createKeyBackupPayload = async (
+  keyPair: KeyPair,
+  password: string,
+): Promise<KeyBackupPayload> => {
+  if (!password?.trim()) {
+    throw new Error("Password is required to create key backup");
+  }
+
+  ensureSubtleCrypto();
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const aesKey = await deriveAesKey(password, salt);
+
+  const encrypted = await crypto.subtle.encrypt(
+    { name: "AES-GCM", iv },
+    aesKey,
+    utf8ToBytes(keyPair.privateKey),
+  );
+
+  return {
+    version: 1,
+    publicKey: keyPair.publicKey,
+    encryptedPrivateKey: toBase64(new Uint8Array(encrypted)),
+    salt: toBase64(salt),
+    iv: toBase64(iv),
+  };
+};
+
+export const restoreKeyPairFromBackup = async (
+  backup: KeyBackupPayload,
+  password: string,
+): Promise<KeyPair> => {
+  if (!password?.trim()) {
+    throw new Error("Password is required to restore key backup");
+  }
+
+  ensureSubtleCrypto();
+  const salt = fromBase64(backup.salt);
+  const iv = fromBase64(backup.iv);
+  const aesKey = await deriveAesKey(password, salt);
+
+  const decrypted = await crypto.subtle.decrypt(
+    { name: "AES-GCM", iv },
+    aesKey,
+    fromBase64(backup.encryptedPrivateKey),
+  );
+
+  const privateKey = bytesToUtf8(new Uint8Array(decrypted));
+
+  return {
+    publicKey: backup.publicKey,
+    privateKey,
+  };
 };
 
 const normalizeKey = (
