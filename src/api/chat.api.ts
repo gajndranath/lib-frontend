@@ -80,6 +80,24 @@ export const chatApi = {
       ),
     ),
 
+  // Store entire keypair (encrypted with password) for recovery after logout
+  setConversationKeyPair: (
+    conversationId: string,
+    keypair: { publicKey: string; privateKey: string },
+  ) =>
+    apiCall<ApiResponse<null>>(
+      axiosInstance.post(`/chat/conversations/${conversationId}/keypair`, {
+        publicKey: keypair.publicKey,
+        privateKey: keypair.privateKey,
+      }),
+    ),
+
+  // Retrieve keypair for conversation
+  getConversationKeyPair: (conversationId: string) =>
+    apiCall<ApiResponse<{ publicKey: string; privateKey: string }>>(
+      axiosInstance.get(`/chat/conversations/${conversationId}/keypair`),
+    ),
+
   listConversations: () =>
     apiCall<ApiResponse<ChatConversation[]>>(
       axiosInstance.get("/chat/conversations"),

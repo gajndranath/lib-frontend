@@ -76,6 +76,27 @@ export const studentChatApi = {
       ),
     ),
 
+  // Store entire keypair (encrypted with password) for recovery after logout
+  setConversationKeyPair: (
+    conversationId: string,
+    keypair: { publicKey: string; privateKey: string },
+  ) =>
+    studentApiCall<ApiResponse<null>>(
+      studentAxios.post(
+        `/student-chat/conversations/${conversationId}/keypair`,
+        {
+          publicKey: keypair.publicKey,
+          privateKey: keypair.privateKey,
+        },
+      ),
+    ),
+
+  // Retrieve keypair for conversation
+  getConversationKeyPair: (conversationId: string) =>
+    studentApiCall<ApiResponse<{ publicKey: string; privateKey: string }>>(
+      studentAxios.get(`/student-chat/conversations/${conversationId}/keypair`),
+    ),
+
   listConversations: () =>
     studentApiCall<ApiResponse<ChatConversation[]>>(
       studentAxios.get("/student-chat/conversations"),

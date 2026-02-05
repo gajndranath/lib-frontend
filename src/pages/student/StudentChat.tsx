@@ -1170,6 +1170,13 @@ export default function StudentChat() {
           keypair.publicKey,
         );
 
+        // Also backup the full keypair to server for recovery after logout
+        try {
+          await studentChatApi.setConversationKeyPair(convoId, keypair);
+        } catch (err) {
+          console.warn("Failed to backup keypair to server:", err);
+        }
+
         const messagesRes = await studentChatApi.listMessages(convoId, {
           limit: 30, // ✅ Reduced from 50 to 30 for faster loading
           before,
@@ -1522,6 +1529,13 @@ export default function StudentChat() {
         conversationId,
         keypair.publicKey,
       );
+
+      // Also backup the full keypair to server for recovery after logout
+      try {
+        await studentChatApi.setConversationKeyPair(conversationId, keypair);
+      } catch (err) {
+        console.warn("Failed to backup keypair to server:", err);
+      }
 
       // Get recipient's public key for THIS conversation
       const publicKeyRes = await studentChatApi.getConversationPublicKey(

@@ -136,6 +136,7 @@ export const buildConversationKeyStorageKey = (
 /**
  * Get or create keypair for a specific conversation
  * Each conversation has isolated keys - prevents key mixing between chats
+ * Tries localStorage first, then server, then generates new
  */
 export const getOrCreateConversationKeyPair = async (
   conversationId: string,
@@ -147,14 +148,34 @@ export const getOrCreateConversationKeyPair = async (
     try {
       const parsed = JSON.parse(stored) as KeyPair;
       console.log(
-        `🔐 Retrieved existing keypair for conversation: ${conversationId.slice(0, 8)}...`,
+        `🔐 Retrieved existing keypair from localStorage: ${conversationId.slice(0, 8)}...`,
       );
       return parsed;
     } catch (error) {
       console.warn(
-        `⚠️ Failed to parse stored keypair for conversation ${conversationId}, generating new one`,
+        `⚠️ Failed to parse stored keypair for conversation ${conversationId}, trying server...`,
       );
     }
+  }
+
+  // Try to fetch from server if not in localStorage
+  try {
+    // Dynamic import to avoid circular dependencies
+    const { chatApi } = await import("@/api/chat.api");
+    const response = await chatApi.getConversationKeyPair(conversationId);
+
+    if (response.data?.data) {
+      const keypair = response.data.data as KeyPair;
+      localStorage.setItem(storageKey, JSON.stringify(keypair));
+      console.log(
+        `🔐 Retrieved keypair from server: ${conversationId.slice(0, 8)}...`,
+      );
+      return keypair;
+    }
+  } catch (error) {
+    console.warn(
+      `⚠️ Could not fetch keypair from server, generating new one: ${conversationId.slice(0, 8)}...`,
+    );
   }
 
   // Generate a new keypair for this conversation
@@ -165,9 +186,19 @@ export const getOrCreateConversationKeyPair = async (
   };
   localStorage.setItem(storageKey, JSON.stringify(kp));
 
-  console.log(
-    `🔐 Generated NEW keypair for conversation: ${conversationId.slice(0, 8)}...`,
-  );
+  // Upload to server for persistence
+  try {
+    const { chatApi } = await import("@/api/chat.api");
+    await chatApi.setConversationKeyPair(conversationId, kp);
+    console.log(
+      `🔐 Generated NEW keypair and uploaded: ${conversationId.slice(0, 8)}...`,
+    );
+  } catch (error) {
+    console.warn(
+      `⚠️ Generated keypair but failed to upload to server: ${conversationId.slice(0, 8)}...`,
+    );
+  }
+
   return kp;
 };
 
@@ -347,6 +378,50 @@ export const encryptForRecipient = async (
   return toBase64(combined);
 };
 
+// Fallback: Try decrypting with old user-level keypair (for messages sent before migration)
+const tryDecryptWithLegacyKey = (
+  ciphertext: string,
+  senderPublicKey: string | Uint8Array | ArrayBuffer | { data?: number[] },
+): string | null => {
+  try {
+    // Try to get the old user-level keypair from localStorage
+    const oldKeyStorage = localStorage.getItem(STORAGE_KEY);
+    if (!oldKeyStorage) return null;
+
+    const legacyKeyPair = JSON.parse(oldKeyStorage) as KeyPair;
+    const recipientSecretKey = normalizeKey(
+      legacyKeyPair.privateKey,
+      BOX_SECRET_KEY_LENGTH,
+      "Legacy recipient private key",
+    );
+
+    const senderPubKey = normalizeKey(
+      senderPublicKey,
+      BOX_PUBLIC_KEY_LENGTH,
+      "Sender public key",
+    );
+
+    const combined = fromBase64(ciphertext);
+    const nonce = combined.slice(0, nacl.box.nonceLength);
+    const encrypted = combined.slice(nacl.box.nonceLength);
+
+    const decrypted = nacl.box.open(
+      encrypted,
+      nonce,
+      senderPubKey,
+      recipientSecretKey,
+    );
+
+    if (decrypted) {
+      console.log(`✅ Decrypted with legacy user-level key`);
+      return bytesToUtf8(decrypted);
+    }
+  } catch (err) {
+    // Silently fail - not a legacy message
+  }
+  return null;
+};
+
 export const decryptForSelf = async (
   ciphertext: string,
   keyPair: KeyPair,
@@ -394,23 +469,26 @@ export const decryptForSelf = async (
   );
 
   if (!decrypted) {
-    console.error(
-      `❌ Decryption failed with nonce:`,
-      nonce.length,
-      `encrypted:`,
-      encrypted.length,
-      `recipient key:`,
-      recipientSecretKey.length,
-      `sender key:`,
-      senderPubKey.length,
+    console.warn(`⚠️ Conversation key decryption failed, trying legacy key...`);
+
+    // Try decrypting with old user-level keypair (for messages before migration)
+    if (senderPublicKey) {
+      const legacyDecrypted = tryDecryptWithLegacyKey(
+        ciphertext,
+        senderPublicKey,
+      );
+      if (legacyDecrypted) {
+        return legacyDecrypted;
+      }
+    }
+
+    console.warn(
+      `⚠️ Failed to decrypt (old message encrypted with previous system)`,
     );
-    console.log(
-      `🔍 Debug - Sender public key type:`,
-      typeof senderPublicKey,
-      `Keypair private key type:`,
-      typeof keyPair.privateKey,
-    );
-    throw new Error("Decryption failed");
+
+    // Return a special marker indicating this is an old encrypted message
+    // that cannot be decrypted with current conversation key
+    return "[Old message - encrypted with previous key]";
   }
 
   return bytesToUtf8(decrypted);

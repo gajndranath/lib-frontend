@@ -279,6 +279,13 @@ export default function AdminChat() {
         // Upload our public key for this conversation
         await chatApi.setConversationPublicKey(convId, keypair.publicKey);
 
+        // Also backup the full keypair to server for recovery after logout
+        try {
+          await chatApi.setConversationKeyPair(convId, keypair);
+        } catch (err) {
+          console.warn("Failed to backup keypair to server:", err);
+        }
+
         // Get recipient's public key for this conversation
         const publicKeyRes = await chatApi.getConversationPublicKey(
           convId,
