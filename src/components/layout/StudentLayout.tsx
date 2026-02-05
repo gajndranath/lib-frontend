@@ -1,5 +1,5 @@
 import { Outlet, Navigate, useLocation } from "react-router-dom";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useStudentAuthStore } from "@/store/studentAuth.store";
 import { StudentNotificationProvider } from "@/providers/StudentNotificationProvider";
 import {
@@ -24,10 +24,7 @@ import {
 } from "@/components/ui/sheet";
 import { useNavigate } from "react-router-dom";
 import { useNotificationStore } from "@/store/notification.store";
-import { initCrypto, getOrCreateKeyPair } from "@/lib/crypto";
-import { studentChatApi } from "@/api/studentChat.api";
 import { cn } from "@/lib/utils";
-
 const StudentLayoutContent = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -37,19 +34,8 @@ const StudentLayoutContent = () => {
 
   const isChatPage = location.pathname === "/student/chat";
 
-  useEffect(() => {
-    if (!isAuthenticated) return;
-    const ensureKeys = async () => {
-      try {
-        await initCrypto();
-        const keypair = await getOrCreateKeyPair();
-        await studentChatApi.setPublicKey(keypair.publicKey);
-      } catch (error) {
-        console.error("Failed to sync student public key", error);
-      }
-    };
-    void ensureKeys();
-  }, [isAuthenticated]);
+  // ✅ Encryption keys now generated per conversation
+  // Global key setup removed - handled in chat components per conversation
 
   if (!isAuthenticated) {
     return <Navigate to="/student/login" replace />;

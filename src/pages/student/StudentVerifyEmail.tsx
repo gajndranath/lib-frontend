@@ -3,9 +3,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { useMutation } from "@tanstack/react-query";
 import { Mail, Key, ArrowRight, Lock } from "lucide-react";
 import { studentAuthApi } from "@/api/studentAuth.api";
-import { studentChatApi } from "@/api/studentChat.api";
 import { useStudentAuthStore } from "@/store/studentAuth.store";
-import { initCrypto, getOrCreateKeyPair } from "@/lib/crypto";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -27,7 +25,6 @@ export const StudentVerifyEmail = () => {
   const [email, setEmail] = useState(() => searchParams.get("email") || "");
   const [otp, setOtp] = useState("");
   const [password, setPassword] = useState("");
-
   const requestOtpMutation = useMutation({
     mutationFn: () => studentAuthApi.requestOtp({ email, purpose: "VERIFY" }),
     onSuccess: () => {
@@ -46,14 +43,8 @@ export const StudentVerifyEmail = () => {
         localStorage.setItem("studentAccessToken", accessToken);
         localStorage.setItem("student", JSON.stringify(student));
 
-        // Initialize encryption keys for announcements/chat
-        try {
-          await initCrypto();
-          const keypair = await getOrCreateKeyPair();
-          await studentChatApi.setPublicKey(keypair.publicKey);
-        } catch (error) {
-          console.error("Failed to initialize encryption keys:", error);
-        }
+        // ✅ Encryption keys now generated per conversation
+        // No global key setup needed on registration
 
         navigate("/student/dashboard");
       }

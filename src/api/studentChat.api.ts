@@ -33,6 +33,8 @@ export interface FriendRequestsResponse {
 }
 
 export const studentChatApi = {
+  // ⚠️ DEPRECATED: User-level key management (kept for backward compatibility)
+  // Use setConversationPublicKey for new code
   setPublicKey: (publicKey: string) =>
     studentApiCall<ApiResponse<null>>(
       studentAxios.post("/student-chat/keys", { publicKey }),
@@ -48,9 +50,30 @@ export const studentChatApi = {
       studentAxios.post("/student-chat/keys/backup", payload),
     ),
 
+  // ⚠️ DEPRECATED: User-level public key retrieval (kept for backward compatibility)
+  // Use getConversationPublicKey for new code
   getPublicKey: (userType: "Student" | "Admin", userId: string) =>
     studentApiCall<ApiResponse<{ publicKey: string }>>(
       studentAxios.get(`/student-chat/keys/${userType}/${userId}`),
+    ),
+
+  // ========== CONVERSATION-BASED KEY MANAGEMENT (RECOMMENDED) ==========
+  setConversationPublicKey: (conversationId: string, publicKey: string) =>
+    studentApiCall<ApiResponse<null>>(
+      studentAxios.post(`/student-chat/conversations/${conversationId}/keys`, {
+        publicKey,
+      }),
+    ),
+
+  getConversationPublicKey: (
+    conversationId: string,
+    userType: "Student" | "Admin",
+    userId: string,
+  ) =>
+    studentApiCall<ApiResponse<{ publicKey: string }>>(
+      studentAxios.get(
+        `/student-chat/conversations/${conversationId}/keys/${userType}/${userId}`,
+      ),
     ),
 
   listConversations: () =>

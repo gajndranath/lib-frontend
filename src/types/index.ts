@@ -569,6 +569,7 @@ export interface SocketEvents {
   "call:ice": (data: unknown) => void;
   "call:end": (data: unknown) => void;
   "call:mute-status": (data: { isMuted: boolean }) => void;
+  "call:error": (data: { msg?: string }) => void;
   "friend-request:new": (data: unknown) => void;
   "friend-request:accepted": (data: unknown) => void;
   "friend:removed": (data: { removedBy: string; timestamp: string }) => void;

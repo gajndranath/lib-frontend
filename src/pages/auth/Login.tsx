@@ -17,15 +17,6 @@ import {
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
 import { cn } from "@/lib/utils";
-import { chatApi } from "@/api/chat.api";
-import {
-  buildKeyStorageKey,
-  createKeyBackupPayload,
-  getOrCreateKeyPair,
-  getStoredKeyPair,
-  restoreKeyPairFromBackup,
-  storeKeyPair,
-} from "@/lib/crypto";
 
 const loginSchema = z.object({
   email: z.string().email("Invalid email address").min(1, "Email is required"),
@@ -100,53 +91,8 @@ export const Login: React.FC = () => {
         password: data.password,
       });
 
-      const adminRaw = localStorage.getItem("admin");
-      const adminData = adminRaw ? JSON.parse(adminRaw) : null;
-      if (adminData?._id) {
-        const storageKey = buildKeyStorageKey({
-          userType: "Admin",
-          userId: adminData._id,
-        });
-
-        const localKeyPair = getStoredKeyPair(storageKey);
-        const backupRes = await chatApi.getKeyBackup();
-        const backup =
-          backupRes.error?.statusCode === 404
-            ? null
-            : (backupRes.data?.data ?? null);
-
-        if (backupRes.error && backupRes.error.statusCode !== 404) {
-          console.error("Key backup fetch failed:", backupRes.error.message);
-        }
-
-        if (backup) {
-          try {
-            const restored = await restoreKeyPairFromBackup(
-              backup,
-              data.password,
-            );
-            storeKeyPair(restored, storageKey);
-            await chatApi.setPublicKey(restored.publicKey);
-          } catch (restoreError) {
-            if (localKeyPair) {
-              const payload = await createKeyBackupPayload(
-                localKeyPair,
-                data.password,
-              );
-              await chatApi.setKeyBackup(payload);
-              await chatApi.setPublicKey(localKeyPair.publicKey);
-            } else {
-              console.error("Key backup restore failed:", restoreError);
-            }
-          }
-        } else {
-          const keyPair =
-            localKeyPair ?? (await getOrCreateKeyPair(storageKey));
-          await chatApi.setPublicKey(keyPair.publicKey);
-          const payload = await createKeyBackupPayload(keyPair, data.password);
-          await chatApi.setKeyBackup(payload);
-        }
-      }
+      // ✅ Encryption keys now generated per conversation, not per user
+      // No need for global key setup on login
 
       toast.success("Login successful!");
     } catch (error: unknown) {

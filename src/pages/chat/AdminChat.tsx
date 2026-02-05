@@ -6,8 +6,7 @@ import { socketService } from "@/api/socket.service";
 import { useAuth } from "@/hooks/useAuth";
 import {
   initCrypto,
-  getOrCreateKeyPair,
-  buildKeyStorageKey,
+  getOrCreateConversationKeyPair,
   encryptForRecipient,
   decryptForSelf,
 } from "@/lib/crypto";
@@ -113,15 +112,12 @@ export default function AdminChat() {
   const callStartTime = useRef<Date | null>(null);
   const callLogSent = useRef(false);
   const outgoingCallId = useRef<string | null>(null);
+  const pendingIceCandidates = useRef<RTCIceCandidateInit[]>([]);
   const isCaller = useRef(false);
   const localStreamRef = useRef<MediaStream | null>(null);
   const scrollAreaRef = useRef<HTMLDivElement | null>(null);
   const pendingStatusRef = useRef<Map<string, "SENT" | "DELIVERED" | "READ">>(
     new Map(),
-  );
-  const keyStorageKey = useMemo(
-    () => buildKeyStorageKey({ userType: "Admin", userId: admin?._id || null }),
-    [admin?._id],
   );
 
   type ChatSocketPayload = ChatMessage & {
@@ -232,12 +228,10 @@ export default function AdminChat() {
     if (!admin?._id) return;
     const setup = async () => {
       await initCrypto();
-      const keypair = await getOrCreateKeyPair(keyStorageKey);
-      await chatApi.setPublicKey(keypair.publicKey);
       setKeyReady(true);
     };
     setup();
-  }, [admin?._id, keyStorageKey]);
+  }, [admin?._id]);
 
   // Online/offline event listeners
   useEffect(() => {
@@ -279,8 +273,15 @@ export default function AdminChat() {
         : `Call ended • ${duration}`;
 
       try {
-        const keypair = await getOrCreateKeyPair(keyStorageKey);
-        const publicKeyRes = await chatApi.getPublicKey(
+        // Get conversation-specific keypair
+        const keypair = await getOrCreateConversationKeyPair(convId);
+
+        // Upload our public key for this conversation
+        await chatApi.setConversationPublicKey(convId, keypair.publicKey);
+
+        // Get recipient's public key for this conversation
+        const publicKeyRes = await chatApi.getConversationPublicKey(
+          convId,
           recipient.type,
           recipient.id,
         );
@@ -340,13 +341,7 @@ export default function AdminChat() {
         console.error("Failed to log call:", error);
       }
     },
-    [
-      conversationId,
-      selectedContact,
-      incomingCallData,
-      isOnline,
-      keyStorageKey,
-    ],
+    [conversationId, selectedContact, incomingCallData, isOnline],
   );
 
   const endCall = useCallback(() => {
@@ -370,11 +365,18 @@ export default function AdminChat() {
     setIncomingCallData(null);
     callStartTime.current = null;
     outgoingCallId.current = null;
+    pendingIceCandidates.current = [];
     isCaller.current = false;
   }, [logCallIfNeeded]);
 
   const handleIncomingCall = useCallback(async (payload: CallOfferPayload) => {
     try {
+      console.log(
+        `📞 Incoming call from ${payload.from.userType} ${payload.from.userId}`,
+      );
+      console.log(`   CallId: ${payload.callId}`);
+      console.log(`   ConversationId: ${payload.conversationId || "N/A"}`);
+
       playNotificationSound();
       isCaller.current = false;
       callStartTime.current = null;
@@ -586,11 +588,19 @@ export default function AdminChat() {
       }
 
       try {
-        const keypair = await getOrCreateKeyPair(keyStorageKey);
+        // Get our keypair for this conversation
+        const keypair = await getOrCreateConversationKeyPair(p.conversationId);
+
+        // Upload our public key for this conversation
+        await chatApi.setConversationPublicKey(
+          p.conversationId,
+          keypair.publicKey,
+        );
 
         let senderPublicKey = p.senderPublicKey;
         if (!senderPublicKey) {
-          const pubKeyResponse = await chatApi.getPublicKey(
+          const pubKeyResponse = await chatApi.getConversationPublicKey(
+            p.conversationId,
             p.senderType,
             p.senderId,
           );
@@ -693,7 +703,8 @@ export default function AdminChat() {
       if (!p?.encryptedForSender?.ciphertext) return;
 
       try {
-        const keypair = await getOrCreateKeyPair(keyStorageKey);
+        // Get our keypair for this conversation
+        const keypair = await getOrCreateConversationKeyPair(p.conversationId);
 
         let senderPublicKey = p.senderPublicKey;
         if (!senderPublicKey) {
@@ -791,6 +802,18 @@ export default function AdminChat() {
       const p = payload as { callId?: string };
       if (p?.callId) {
         outgoingCallId.current = p.callId;
+
+        if (pendingIceCandidates.current.length > 0 && selectedContact) {
+          pendingIceCandidates.current.forEach((candidate) => {
+            socketService.emit("call:ice", {
+              recipientId: selectedContact._id,
+              recipientType: "Student",
+              candidate,
+              callId: p.callId,
+            });
+          });
+          pendingIceCandidates.current = [];
+        }
       }
     });
 
@@ -836,6 +859,13 @@ export default function AdminChat() {
       );
     });
 
+    socketService.on("call:error", (payload: unknown) => {
+      const p = payload as { msg?: string };
+      console.error("❌ Call error from server:", p?.msg || "Unknown error");
+      toast.error(p?.msg || "Call failed");
+      endCall();
+    });
+
     return () => {
       socketService.off("presence:update");
       socketService.off("chat:message");
@@ -849,15 +879,9 @@ export default function AdminChat() {
       socketService.off("call:ice");
       socketService.off("call:end");
       socketService.off("call:mute-status");
+      socketService.off("call:error");
     };
-  }, [
-    conversationId,
-    handleIncomingCall,
-    endCall,
-    selectedContact,
-    admin,
-    keyStorageKey,
-  ]);
+  }, [conversationId, handleIncomingCall, endCall, selectedContact, admin]);
 
   // Auto-scroll to bottom on new messages
   useEffect(() => {
@@ -965,7 +989,13 @@ export default function AdminChat() {
         `📥 Loading messages: ${before ? "older" : "initial"} ${before || ""}`,
       );
       setLoadingMore(true);
-      const keypair = await getOrCreateKeyPair(keyStorageKey);
+
+      // Get our keypair for this conversation
+      const keypair = await getOrCreateConversationKeyPair(convoId);
+
+      // Upload our public key for this conversation
+      await chatApi.setConversationPublicKey(convoId, keypair.publicKey);
+
       const messagesRes = await chatApi.listMessages(convoId, {
         limit: 30, // ✅ Reduced from 50 to 30 for faster loading
         before,
@@ -1012,14 +1042,16 @@ export default function AdminChat() {
                 if (isOwnMessage) {
                   senderPublicKey = keypair.publicKey;
                 } else {
-                  const pubKeyResponse = await chatApi.getPublicKey(
+                  // Get sender's public key for THIS conversation
+                  const pubKeyResponse = await chatApi.getConversationPublicKey(
+                    convoId,
                     m.senderType,
                     m.senderId,
                   );
 
                   if (pubKeyResponse.error) {
                     console.error(
-                      "Failed to fetch sender public key for message",
+                      "Failed to fetch sender conversation public key for message",
                       m._id,
                     );
                     return null;
@@ -1232,7 +1264,12 @@ export default function AdminChat() {
   const handleSend = async () => {
     if (!selectedContact || !conversationId || !message.trim()) return;
     try {
-      const keypair = await getOrCreateKeyPair(keyStorageKey);
+      // Get our keypair for this conversation
+      const keypair = await getOrCreateConversationKeyPair(conversationId);
+
+      // Upload our public key for this conversation
+      await chatApi.setConversationPublicKey(conversationId, keypair.publicKey);
+
       const messageText = message.trim();
       const tempMessageId = `temp_${Date.now()}`;
 
@@ -1251,8 +1288,9 @@ export default function AdminChat() {
       ]);
       setMessage("");
 
-      // Always fetch fresh recipient key to avoid stale cache
-      const publicKeyRes = await chatApi.getPublicKey(
+      // Get recipient's public key for THIS conversation
+      const publicKeyRes = await chatApi.getConversationPublicKey(
+        conversationId,
         "Student",
         selectedContact._id,
       );
@@ -1304,7 +1342,17 @@ export default function AdminChat() {
   const startCall = async () => {
     if (!selectedContact) return;
 
+    if (!conversationId) {
+      console.error("❌ Cannot start call: conversationId is missing");
+      toast.error("Cannot start call: No active conversation");
+      return;
+    }
+
     try {
+      console.log(`📞 Initiating call to ${selectedContact.name}`);
+      console.log(`   ConversationId: ${conversationId.slice(0, 8)}...`);
+      console.log(`   Recipient: ${selectedContact._id}`);
+
       setCallState("outgoing");
       callStartTime.current = null;
       callLogSent.current = false;
@@ -1351,11 +1399,16 @@ export default function AdminChat() {
 
       peer.onicecandidate = (event: RTCPeerConnectionIceEvent) => {
         if (event.candidate) {
-          socketService.emit("call:ice", {
-            recipientId: selectedContact._id,
-            recipientType: "Student",
-            candidate: event.candidate,
-          });
+          if (outgoingCallId.current) {
+            socketService.emit("call:ice", {
+              recipientId: selectedContact._id,
+              recipientType: "Student",
+              candidate: event.candidate,
+              callId: outgoingCallId.current,
+            });
+          } else {
+            pendingIceCandidates.current.push(event.candidate);
+          }
         }
       };
 
@@ -1376,6 +1429,7 @@ export default function AdminChat() {
         conversationId,
       });
 
+      console.log("✅ Call offer sent successfully");
       toast.success("Calling...");
     } catch (error) {
       console.error("❌ Start call error:", error);

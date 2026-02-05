@@ -39,6 +39,8 @@ export interface ChatMessage {
 }
 
 export const chatApi = {
+  // ⚠️ DEPRECATED: User-level key management (kept for backward compatibility)
+  // Use setConversationPublicKey for new code
   setPublicKey: (publicKey: string) =>
     apiCall<ApiResponse<null>>(axiosInstance.post("/chat/keys", { publicKey })),
 
@@ -52,9 +54,30 @@ export const chatApi = {
       axiosInstance.post("/chat/keys/backup", payload),
     ),
 
+  // ⚠️ DEPRECATED: User-level public key retrieval (kept for backward compatibility)
+  // Use getConversationPublicKey for new code
   getPublicKey: (userType: "Student" | "Admin", userId: string) =>
     apiCall<ApiResponse<{ publicKey: string }>>(
       axiosInstance.get(`/chat/keys/${userType}/${userId}`),
+    ),
+
+  // ========== CONVERSATION-BASED KEY MANAGEMENT (RECOMMENDED) ==========
+  setConversationPublicKey: (conversationId: string, publicKey: string) =>
+    apiCall<ApiResponse<null>>(
+      axiosInstance.post(`/chat/conversations/${conversationId}/keys`, {
+        publicKey,
+      }),
+    ),
+
+  getConversationPublicKey: (
+    conversationId: string,
+    userType: "Student" | "Admin",
+    userId: string,
+  ) =>
+    apiCall<ApiResponse<{ publicKey: string }>>(
+      axiosInstance.get(
+        `/chat/conversations/${conversationId}/keys/${userType}/${userId}`,
+      ),
     ),
 
   listConversations: () =>

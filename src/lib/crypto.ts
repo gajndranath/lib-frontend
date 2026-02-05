@@ -52,6 +52,10 @@ export const initCrypto = async () => {
   return Promise.resolve();
 };
 
+// ==================== LEGACY USER-LEVEL KEY FUNCTIONS ====================
+// ⚠️ DEPRECATED: These are kept for backward compatibility with key backup
+// New code should use conversation-based functions below
+
 export const buildKeyStorageKey = (options?: {
   userType?: "Admin" | "Student";
   userId?: string | null;
@@ -112,6 +116,69 @@ export const clearAllChatKeys = (): void => {
     }
   });
   console.log(`🔐 All chat keys cleared`);
+};
+
+// ==================== CONVERSATION-BASED KEY MANAGEMENT ====================
+
+/**
+ * Build storage key for conversation-specific keypair
+ * This ensures each conversation has its own isolated encryption keys
+ */
+export const buildConversationKeyStorageKey = (
+  conversationId: string,
+): string => {
+  if (!conversationId) {
+    throw new Error("conversationId is required for conversation keys");
+  }
+  return `${STORAGE_KEY}:conv:${conversationId}`;
+};
+
+/**
+ * Get or create keypair for a specific conversation
+ * Each conversation has isolated keys - prevents key mixing between chats
+ */
+export const getOrCreateConversationKeyPair = async (
+  conversationId: string,
+): Promise<KeyPair> => {
+  const storageKey = buildConversationKeyStorageKey(conversationId);
+  const stored = localStorage.getItem(storageKey);
+
+  if (stored) {
+    try {
+      const parsed = JSON.parse(stored) as KeyPair;
+      console.log(
+        `🔐 Retrieved existing keypair for conversation: ${conversationId.slice(0, 8)}...`,
+      );
+      return parsed;
+    } catch (error) {
+      console.warn(
+        `⚠️ Failed to parse stored keypair for conversation ${conversationId}, generating new one`,
+      );
+    }
+  }
+
+  // Generate a new keypair for this conversation
+  const keypair = nacl.box.keyPair();
+  const kp = {
+    publicKey: toBase64(keypair.publicKey),
+    privateKey: toBase64(keypair.secretKey),
+  };
+  localStorage.setItem(storageKey, JSON.stringify(kp));
+
+  console.log(
+    `🔐 Generated NEW keypair for conversation: ${conversationId.slice(0, 8)}...`,
+  );
+  return kp;
+};
+
+/**
+ * Clear keypair for a specific conversation
+ * Use when conversation is deleted or needs key rotation
+ */
+export const clearConversationKey = (conversationId: string): void => {
+  const key = buildConversationKeyStorageKey(conversationId);
+  localStorage.removeItem(key);
+  console.log(`🔐 Cleared conversation key: ${conversationId.slice(0, 8)}...`);
 };
 
 const KDF_ITERATIONS = 310000;

@@ -6,8 +6,7 @@ import { studentAuthApi } from "@/api/studentAuth.api";
 import { socketService } from "@/api/socket.service";
 import {
   initCrypto,
-  getOrCreateKeyPair,
-  buildKeyStorageKey,
+  getOrCreateConversationKeyPair,
   encryptForRecipient,
   decryptForSelf,
 } from "@/lib/crypto";
@@ -129,20 +128,12 @@ export default function StudentChat() {
   const callStartTime = useRef<Date | null>(null);
   const callLogSent = useRef(false);
   const outgoingCallId = useRef<string | null>(null);
+  const pendingIceCandidates = useRef<RTCIceCandidateInit[]>([]);
   const isCaller = useRef(false);
   const scrollAreaRef = useRef<HTMLDivElement | null>(null);
   const pendingStatusRef = useRef<Map<string, "SENT" | "DELIVERED" | "READ">>(
     new Map(),
   );
-  const keyStorageKey = useMemo(
-    () =>
-      buildKeyStorageKey({
-        userType: "Student",
-        userId: student?._id || null,
-      }),
-    [student?._id],
-  );
-
   // ✅ Message cache to avoid reloading on re-entry
   const messageCache = useRef<Map<string, UiMessage[]>>(new Map());
 
@@ -378,11 +369,9 @@ export default function StudentChat() {
     if (!student?._id) return;
     const setup = async () => {
       await initCrypto();
-      const keypair = await getOrCreateKeyPair(keyStorageKey);
-      await studentChatApi.setPublicKey(keypair.publicKey);
     };
     setup();
-  }, [student?._id, keyStorageKey]);
+  }, [student?._id]);
 
   // Online/offline event listeners
   useEffect(() => {
@@ -424,8 +413,18 @@ export default function StudentChat() {
         : `Call ended • ${duration}`;
 
       try {
-        const keypair = await getOrCreateKeyPair(keyStorageKey);
-        const publicKeyRes = await studentChatApi.getPublicKey(
+        // Get conversation-specific keypair
+        const keypair = await getOrCreateConversationKeyPair(convId);
+
+        // Upload our public key for this conversation
+        await studentChatApi.setConversationPublicKey(
+          convId,
+          keypair.publicKey,
+        );
+
+        // Get recipient's public key for this conversation
+        const publicKeyRes = await studentChatApi.getConversationPublicKey(
+          convId,
           recipient.type,
           recipient.id,
         );
@@ -506,11 +505,18 @@ export default function StudentChat() {
     setIncomingCallData(null);
     callStartTime.current = null;
     outgoingCallId.current = null;
+    pendingIceCandidates.current = [];
     isCaller.current = false;
   }, [logCallIfNeeded]);
 
   const handleIncomingCall = useCallback(async (payload: CallOfferPayload) => {
     try {
+      console.log(
+        `📞 Incoming call from ${payload.from.userType} ${payload.from.userId}`,
+      );
+      console.log(`   CallId: ${payload.callId}`);
+      console.log(`   ConversationId: ${payload.conversationId || "N/A"}`);
+
       playNotificationSound();
       isCaller.current = false;
       callStartTime.current = null;
@@ -726,18 +732,26 @@ export default function StudentChat() {
       }
 
       try {
-        const keypair = await getOrCreateKeyPair(keyStorageKey);
+        // Get our keypair for this conversation
+        const keypair = await getOrCreateConversationKeyPair(p.conversationId);
+
+        // Upload our public key for this conversation
+        await studentChatApi.setConversationPublicKey(
+          p.conversationId,
+          keypair.publicKey,
+        );
 
         let senderPublicKey = p.senderPublicKey;
         if (!senderPublicKey) {
-          const pubKeyResponse = await studentChatApi.getPublicKey(
+          const pubKeyResponse = await studentChatApi.getConversationPublicKey(
+            p.conversationId,
             p.senderType,
             p.senderId,
           );
 
           if (pubKeyResponse.error) {
             console.error(
-              "Failed to fetch sender public key:",
+              "Failed to fetch sender conversation public key:",
               pubKeyResponse.error,
             );
             return;
@@ -823,7 +837,8 @@ export default function StudentChat() {
       if (conversationId && p.conversationId !== conversationId) return;
 
       try {
-        const keypair = await getOrCreateKeyPair(keyStorageKey);
+        // Get our keypair for this conversation
+        const keypair = await getOrCreateConversationKeyPair(p.conversationId);
 
         let senderPublicKey = p.senderPublicKey;
         if (!senderPublicKey) {
@@ -923,6 +938,18 @@ export default function StudentChat() {
       const p = payload as { callId?: string };
       if (p?.callId) {
         outgoingCallId.current = p.callId;
+
+        if (pendingIceCandidates.current.length > 0 && selectedContact) {
+          pendingIceCandidates.current.forEach((candidate) => {
+            socketService.emit("call:ice", {
+              recipientId: selectedContact._id,
+              recipientType: selectedContact.userType,
+              candidate,
+              callId: p.callId,
+            });
+          });
+          pendingIceCandidates.current = [];
+        }
       }
     });
 
@@ -963,6 +990,13 @@ export default function StudentChat() {
     socketService.on("call:mute-status", (payload: unknown) => {
       const p = payload as { isMuted: boolean };
       setRemoteMuted(p.isMuted);
+    });
+
+    socketService.on("call:error", (payload: unknown) => {
+      const p = payload as { msg?: string };
+      console.error("❌ Call error from server:", p?.msg || "Unknown error");
+      toast.error(p?.msg || "Call failed");
+      endCall();
     });
 
     // ✅ Listen for new friend requests
@@ -1030,6 +1064,7 @@ export default function StudentChat() {
       socketService.off("call:ice");
       socketService.off("call:end");
       socketService.off("call:mute-status");
+      socketService.off("call:error");
       socketService.off("friend-request:new");
       socketService.off("friend-request:accepted");
       socketService.off("friend:removed");
@@ -1057,26 +1092,6 @@ export default function StudentChat() {
       scrollContainer.scrollTop = scrollContainer.scrollHeight;
     }, 0);
   }, [messages]);
-
-  // ✅ Load more messages when scrolling to top
-  useEffect(() => {
-    if (!scrollAreaRef.current) return;
-    const scrollContainer = scrollAreaRef.current.querySelector(
-      "[data-radix-scroll-area-viewport]",
-    );
-    if (!scrollContainer) return;
-
-    const handleScroll = async () => {
-      // If scrolled to top within 100px and has more messages
-      if (scrollContainer.scrollTop < 100 && !loadingMore && hasMoreMessages) {
-        console.log("📥 Load more trigger: scroll near top");
-        await handleLoadMoreMessages();
-      }
-    };
-
-    scrollContainer.addEventListener("scroll", handleScroll);
-    return () => scrollContainer.removeEventListener("scroll", handleScroll);
-  }, [conversationId, loadingMore, hasMoreMessages]);
 
   // ✅ Notify backend when leaving a conversation
   useEffect(() => {
@@ -1138,92 +1153,136 @@ export default function StudentChat() {
     }
   };
 
-  const loadMessagesChunk = async (convoId: string, before?: string) => {
-    try {
-      console.log(
-        `📥 Loading messages: ${before ? "older" : "initial"} ${before || ""}`,
-      );
-      setLoadingMore(true);
-      const keypair = await getOrCreateKeyPair(keyStorageKey);
-      const messagesRes = await studentChatApi.listMessages(convoId, {
-        limit: 30, // ✅ Reduced from 50 to 30 for faster loading
-        before,
-      });
-
-      const messagesList = (messagesRes.data?.data ||
-        []) as unknown as ChatMessage[];
-
-      if (messagesList.length > 0) {
+  const loadMessagesChunk = useCallback(
+    async (convoId: string, before?: string) => {
+      try {
         console.log(
-          `📥 Student received ${messagesList.length} messages. Decrypting...`,
+          `📥 Loading messages: ${before ? "older" : "initial"} ${before || ""}`,
         );
-      }
+        setLoadingMore(true);
 
-      // ✅ Early detection: if less than 30, no more messages
-      if (messagesList.length < 30) {
-        setHasMoreMessages(false);
-      }
+        // Get our keypair for this conversation
+        const keypair = await getOrCreateConversationKeyPair(convoId);
 
-      // ✅ Decrypt in parallel batches for speed (5 at a time)
-      const BATCH_SIZE = 5;
-      const decrypted: Array<UiMessage | null> = [];
+        // Upload our public key for this conversation
+        await studentChatApi.setConversationPublicKey(
+          convoId,
+          keypair.publicKey,
+        );
 
-      for (let i = 0; i < messagesList.length; i += BATCH_SIZE) {
-        const batch = messagesList.slice(i, i + BATCH_SIZE);
-        const batchResults = await Promise.all(
-          batch.map(async (m) => {
-            try {
-              // Check if this message is from the current student
-              const isOwnMessage =
-                String(m.senderId) === String(student?._id || "");
+        const messagesRes = await studentChatApi.listMessages(convoId, {
+          limit: 30, // ✅ Reduced from 50 to 30 for faster loading
+          before,
+        });
 
-              // Use encryptedForSender for own messages, encryptedForRecipient for others
-              const payload = isOwnMessage
-                ? m.encryptedForSender
-                : m.encryptedForRecipient;
+        const messagesList = (messagesRes.data?.data ||
+          []) as unknown as ChatMessage[];
 
-              if (!payload?.ciphertext) {
-                console.error("No encrypted payload for message", m._id);
-                return null;
-              }
+        if (messagesList.length > 0) {
+          console.log(
+            `📥 Student received ${messagesList.length} messages. Decrypting...`,
+          );
+        }
 
-              let senderPublicKey = m.senderPublicKey;
-              if (!senderPublicKey) {
-                if (isOwnMessage) {
-                  senderPublicKey = keypair.publicKey;
-                } else {
-                  const pubKeyResponse = await studentChatApi.getPublicKey(
-                    m.senderType,
-                    m.senderId,
-                  );
+        // ✅ Early detection: if less than 30, no more messages
+        if (messagesList.length < 30) {
+          setHasMoreMessages(false);
+        }
 
-                  if (pubKeyResponse.error) {
-                    console.error(
-                      "Failed to fetch sender public key for message",
-                      m._id,
-                    );
-                    return null;
-                  }
+        // ✅ Decrypt in parallel batches for speed (5 at a time)
+        const BATCH_SIZE = 5;
+        const decrypted: Array<UiMessage | null> = [];
 
-                  senderPublicKey = pubKeyResponse.data?.data?.publicKey;
-                  if (!senderPublicKey) {
-                    console.error(
-                      "No public key in response for message",
-                      m._id,
-                    );
-                    return null;
+        for (let i = 0; i < messagesList.length; i += BATCH_SIZE) {
+          const batch = messagesList.slice(i, i + BATCH_SIZE);
+          const batchResults = await Promise.all(
+            batch.map(async (m) => {
+              try {
+                // Check if this message is from the current student
+                const isOwnMessage =
+                  String(m.senderId) === String(student?._id || "");
+
+                // Use encryptedForSender for own messages, encryptedForRecipient for others
+                const payload = isOwnMessage
+                  ? m.encryptedForSender
+                  : m.encryptedForRecipient;
+
+                if (!payload?.ciphertext) {
+                  console.error("No encrypted payload for message", m._id);
+                  return null;
+                }
+
+                let senderPublicKey = m.senderPublicKey;
+                if (!senderPublicKey) {
+                  if (isOwnMessage) {
+                    senderPublicKey = keypair.publicKey;
+                  } else {
+                    // Get sender's public key for THIS conversation
+                    const pubKeyResponse =
+                      await studentChatApi.getConversationPublicKey(
+                        convoId,
+                        m.senderType,
+                        m.senderId,
+                      );
+
+                    if (pubKeyResponse.error) {
+                      console.error(
+                        "Failed to fetch sender conversation public key for message",
+                        m._id,
+                      );
+                      return null;
+                    }
+
+                    senderPublicKey = pubKeyResponse.data?.data?.publicKey;
+                    if (!senderPublicKey) {
+                      console.error(
+                        "No public key in response for message",
+                        m._id,
+                      );
+                      return null;
+                    }
                   }
                 }
-              }
 
-              let text: string;
-              try {
-                text = await decryptForSelf(
-                  payload.ciphertext,
-                  keypair,
-                  senderPublicKey,
-                );
-              } catch (_decryptError) {
+                let text: string;
+                try {
+                  text = await decryptForSelf(
+                    payload.ciphertext,
+                    keypair,
+                    senderPublicKey,
+                  );
+                } catch (_decryptError) {
+                  return {
+                    id: m._id,
+                    text: "Unable to decrypt message",
+                    senderType: m.senderType,
+                    status: m.status,
+                    createdAt: m.createdAt
+                      ? new Date(m.createdAt).toISOString()
+                      : undefined,
+                    isOwnMessage,
+                    contentType: m.contentType ?? "TEXT",
+                  };
+                }
+
+                const pendingStatus = pendingStatusRef.current.get(m._id);
+                if (pendingStatus) {
+                  pendingStatusRef.current.delete(m._id);
+                }
+
+                return {
+                  id: m._id,
+                  text,
+                  senderType: m.senderType,
+                  status: pendingStatus || m.status,
+                  createdAt: m.createdAt
+                    ? new Date(m.createdAt).toISOString()
+                    : undefined,
+                  isOwnMessage,
+                  contentType: m.contentType ?? "TEXT",
+                };
+              } catch (error) {
+                console.error("Error decrypting message:", error);
                 return {
                   id: m._id,
                   text: "Unable to decrypt message",
@@ -1232,97 +1291,69 @@ export default function StudentChat() {
                   createdAt: m.createdAt
                     ? new Date(m.createdAt).toISOString()
                     : undefined,
-                  isOwnMessage,
+                  isOwnMessage:
+                    String(m.senderId) === String(student?._id || ""),
                   contentType: m.contentType ?? "TEXT",
                 };
               }
-
-              const pendingStatus = pendingStatusRef.current.get(m._id);
-              if (pendingStatus) {
-                pendingStatusRef.current.delete(m._id);
-              }
-
-              return {
-                id: m._id,
-                text,
-                senderType: m.senderType,
-                status: pendingStatus || m.status,
-                createdAt: m.createdAt
-                  ? new Date(m.createdAt).toISOString()
-                  : undefined,
-                isOwnMessage,
-                contentType: m.contentType ?? "TEXT",
-              };
-            } catch (error) {
-              console.error("Error decrypting message:", error);
-              return {
-                id: m._id,
-                text: "Unable to decrypt message",
-                senderType: m.senderType,
-                status: m.status,
-                createdAt: m.createdAt
-                  ? new Date(m.createdAt).toISOString()
-                  : undefined,
-                isOwnMessage: String(m.senderId) === String(student?._id || ""),
-                contentType: m.contentType ?? "TEXT",
-              };
-            }
-          }),
-        );
-        decrypted.push(...batchResults);
-      }
-
-      const validMessages = decrypted.filter((m) => m !== null).reverse();
-
-      if (before) {
-        // Prepend older messages
-        setMessages((prev) => {
-          const updated = [...validMessages, ...prev];
-          // Update cache
-          if (conversationId) {
-            messageCache.current.set(conversationId, updated);
-          }
-          return updated;
-        });
-      } else {
-        // Initial load
-        setMessages(validMessages);
-        // ✅ Cache these messages for instant re-entry
-        if (conversationId) {
-          messageCache.current.set(conversationId, validMessages);
-          console.log(
-            `💾 Cached ${validMessages.length} messages for ${conversationId}`,
+            }),
           );
+          decrypted.push(...batchResults);
         }
 
-        if (selectedContact) {
-          setUnreadCounts((prev) => ({
-            ...prev,
-            [selectedContact._id]: 0,
-          }));
-        }
+        const validMessages = decrypted.filter((m) => m !== null).reverse();
 
-        // Mark all unread received messages as read
-        const unreadMessages = validMessages.filter(
-          (m) => !m.isOwnMessage && m.status !== "READ",
-        );
-
-        if (unreadMessages.length > 0) {
-          console.log(`📖 Marking ${unreadMessages.length} messages as read`);
-          unreadMessages.forEach((m) => {
-            socketService.emit("chat:read", { messageId: m.id });
+        if (before) {
+          // Prepend older messages
+          setMessages((prev) => {
+            const updated = [...validMessages, ...prev];
+            // Update cache
+            if (conversationId) {
+              messageCache.current.set(conversationId, updated);
+            }
+            return updated;
           });
-        }
-      }
-    } catch (error) {
-      console.error("Error loading messages:", error);
-      toast.error("Failed to load messages");
-    } finally {
-      setLoadingMore(false);
-    }
-  };
+        } else {
+          // Initial load
+          setMessages(validMessages);
+          // ✅ Cache these messages for instant re-entry
+          if (conversationId) {
+            messageCache.current.set(conversationId, validMessages);
+            console.log(
+              `💾 Cached ${validMessages.length} messages for ${conversationId}`,
+            );
+          }
 
-  const handleLoadMoreMessages = async () => {
+          if (selectedContact) {
+            setUnreadCounts((prev) => ({
+              ...prev,
+              [selectedContact._id]: 0,
+            }));
+          }
+
+          // Mark all unread received messages as read
+          const unreadMessages = validMessages.filter(
+            (m) => !m.isOwnMessage && m.status !== "READ",
+          );
+
+          if (unreadMessages.length > 0) {
+            console.log(`📖 Marking ${unreadMessages.length} messages as read`);
+            unreadMessages.forEach((m) => {
+              socketService.emit("chat:read", { messageId: m.id });
+            });
+          }
+        }
+      } catch (error) {
+        console.error("Error loading messages:", error);
+        toast.error("Failed to load messages");
+      } finally {
+        setLoadingMore(false);
+      }
+    },
+    [student, conversationId, selectedContact],
+  );
+
+  const handleLoadMoreMessages = useCallback(async () => {
     if (!conversationId || loadingMore || !hasMoreMessages) return;
     setLoadingMore(true);
     try {
@@ -1333,7 +1364,33 @@ export default function StudentChat() {
     } finally {
       setLoadingMore(false);
     }
-  };
+  }, [
+    conversationId,
+    loadingMore,
+    hasMoreMessages,
+    messages,
+    loadMessagesChunk,
+  ]);
+
+  // ✅ Load more messages when scrolling to top
+  useEffect(() => {
+    if (!scrollAreaRef.current) return;
+    const scrollContainer = scrollAreaRef.current.querySelector(
+      "[data-radix-scroll-area-viewport]",
+    );
+    if (!scrollContainer) return;
+
+    const handleScroll = async () => {
+      // If scrolled to top within 100px and has more messages
+      if (scrollContainer.scrollTop < 100 && !loadingMore && hasMoreMessages) {
+        console.log("📥 Load more trigger: scroll near top");
+        await handleLoadMoreMessages();
+      }
+    };
+
+    scrollContainer.addEventListener("scroll", handleScroll);
+    return () => scrollContainer.removeEventListener("scroll", handleScroll);
+  }, [conversationId, loadingMore, hasMoreMessages, handleLoadMoreMessages]);
 
   // ✅ Handle message edit
   const handleEditMessage = async () => {
@@ -1457,17 +1514,25 @@ export default function StudentChat() {
     setMessage("");
 
     try {
-      const keypair = await getOrCreateKeyPair(keyStorageKey);
+      // Get our keypair for this conversation
+      const keypair = await getOrCreateConversationKeyPair(conversationId);
 
-      // Always fetch fresh recipient key to avoid stale cache
-      const publicKeyRes = await studentChatApi.getPublicKey(
+      // Upload our public key for this conversation
+      await studentChatApi.setConversationPublicKey(
+        conversationId,
+        keypair.publicKey,
+      );
+
+      // Get recipient's public key for THIS conversation
+      const publicKeyRes = await studentChatApi.getConversationPublicKey(
+        conversationId,
         selectedContact.userType,
         selectedContact._id,
       );
 
       if (publicKeyRes.error) {
         console.error(
-          "Failed to fetch recipient public key:",
+          "Failed to fetch recipient conversation public key:",
           publicKeyRes.error,
         );
         toast.error("Failed to fetch recipient public key");
@@ -1541,7 +1606,17 @@ export default function StudentChat() {
   const startCall = async () => {
     if (!selectedContact) return;
 
+    if (!conversationId) {
+      console.error("❌ Cannot start call: conversationId is missing");
+      toast.error("Cannot start call: No active conversation");
+      return;
+    }
+
     try {
+      console.log(`📞 Initiating call to ${selectedContact.name}`);
+      console.log(`   ConversationId: ${conversationId.slice(0, 8)}...`);
+      console.log(`   Recipient: ${selectedContact._id}`);
+
       setCallState("outgoing");
 
       callStartTime.current = null;
@@ -1591,11 +1666,16 @@ export default function StudentChat() {
 
       peer.onicecandidate = (event: RTCPeerConnectionIceEvent) => {
         if (event.candidate) {
-          socketService.emit("call:ice", {
-            recipientId: selectedContact._id,
-            recipientType: selectedContact.userType,
-            candidate: event.candidate,
-          });
+          if (outgoingCallId.current) {
+            socketService.emit("call:ice", {
+              recipientId: selectedContact._id,
+              recipientType: selectedContact.userType,
+              candidate: event.candidate,
+              callId: outgoingCallId.current,
+            });
+          } else {
+            pendingIceCandidates.current.push(event.candidate);
+          }
         }
       };
 
@@ -1616,6 +1696,7 @@ export default function StudentChat() {
         conversationId,
       });
 
+      console.log("✅ Call offer sent successfully");
       toast.success("Calling...");
     } catch (error) {
       console.error("❌ Start call error:", error);
